@@ -72,3 +72,30 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.google.android.material:material:1.11.0'
 }
+
+// 构建期校验：题库资产（PRD R12）。零新增依赖，使用 Gradle 自带 Groovy JsonSlurper。
+task verifyQuestionBanks {
+    doLast {
+        def slurper = new groovy.json.JsonSlurper()
+        def bankFile = file("src/main/assets/banks/pinyin_5.json")
+        if (!bankFile.exists()) throw new GradleException("缺失题库资产: ${bankFile}")
+        def obj = slurper.parse(bankFile)
+        def entries = obj.entries
+        if (entries == null || entries.isEmpty()) throw new GradleException("pinyin_5.json 条目为空")
+        if (entries.size() != 144) throw new GradleException("pinyin_5.json 条目数应为 144，实际 ${entries.size()}")
+        def distinctV = new HashSet(entries.collect { it.v })
+        if (distinctV.size() < 4) throw new GradleException("pinyin_5.json 去重拼音数 < 4（实际 ${distinctV.size()}）")
+
+        // 与内置兜底字表 BuiltinPinyinBank.java 逐条比对（升级零回归底线）
+        def javaFile = file("src/main/java/com/kidslock/app/question/BuiltinPinyinBank.java")
+        if (!javaFile.exists()) throw new GradleException("缺失内置兜底字表: ${javaFile}")
+        def text = javaFile.text
+        def builtin = new HashSet()
+        def matcher = text =~ /new Entry\("([^"]*)",\s*"([^"]*)"\)/
+        while (matcher.find()) { builtin << "${matcher.group(1)}|${matcher.group(2)}" }
+        def asset = new HashSet(entries.collect { "${it.k}|${it.v}" })
+        if (builtin != asset) throw new GradleException("pinyin_5.json 与 BuiltinPinyinBank 不一致（字表漂移）")
+        println "verifyQuestionBanks: pinyin_5.json OK（${entries.size()} 条，${distinctV.size()} 种拼音）"
+    }
+}
+preBuild.dependsOn verifyQuestionBanks

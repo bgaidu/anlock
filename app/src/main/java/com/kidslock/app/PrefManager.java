@@ -13,7 +13,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * SharedPreferences 封装：管理所有持久化设置和状态。
@@ -49,6 +53,10 @@ public class PrefManager {
     private static final String KEY_PIN_FAIL_COUNT = "pin_fail_count";
     private static final String KEY_PIN_LOCK_UNTIL = "pin_lock_until";
 
+    // 多科目分级题库：年级 / 科目 key
+    private static final String KEY_QUESTION_GRADE = "question_grade";
+    private static final String KEY_QUESTION_SUBJECTS = "question_subjects";
+
     // Defaults
     private static final boolean DEFAULT_AUTO_START = true;
     private static final int DEFAULT_WATCH_LIMIT_MIN = 30;
@@ -56,11 +64,19 @@ public class PrefManager {
     private static final String DEFAULT_PARENT_PIN = "1234";
     private static final int MAX_PIN_FAILS = 5;
     private static final long PIN_LOCKOUT_MS = 30_000;
+    // 题库默认值（D1 五年级 / D2 仅拼音；新旧用户同一路径，无分支）
+    private static final int DEFAULT_QUESTION_GRADE = 5;              // 0=学前..6=六年级
+    private static final String DEFAULT_QUESTION_SUBJECTS = "pinyin";
+    private static final String SUBJECT_SEP = ",";
+    private static final Set<String> VALID_SUBJECTS =
+            new HashSet<>(Arrays.asList("pinyin", "math"));
+    private static final String[] SUBJECT_ORDER = {"pinyin", "math"}; // 固定展示顺序
 
     public PrefManager(Context context) {
         appContext = context.getApplicationContext();
         prefs = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         migrateLegacyTimer();
+        migrateQuestionDefaults();
     }
 
     /** 上游旧版用墙钟"到期时间"计时，一次性迁移为"剩余毫秒 + 开机时钟戳"模型 */
@@ -338,6 +354,72 @@ public class PrefManager {
 
     public void resetPinFailures() {
         prefs.edit().putInt(KEY_PIN_FAIL_COUNT, 0).putLong(KEY_PIN_LOCK_UNTIL, 0).apply();
+    }
+
+    // ===== 多科目分级题库：年级 / 科目（D1 / D2 / D3） =====
+
+    public int getGrade() {
+        int g = prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE);
+        return (g >= 0 && g <= 6) ? g : DEFAULT_QUESTION_GRADE;   // 越界/缺失→5，不抛异常
+    }
+
+    public boolean setGrade(int grade) {
+        if (grade < 0 || grade > 6) return false;
+        prefs.edit().putInt(KEY_QUESTION_GRADE, grade).apply();
+        return true;
+    }
+
+    /** 逻辑类型为 Set<String>（D3：为下期英语留口）。脏值/空段/未知 id 一律过滤，空则回退 {pinyin} */
+    public Set<String> getSubjects() {
+        Set<String> out = new LinkedHashSet<>();
+        String raw = prefs.getString(KEY_QUESTION_SUBJECTS, null);
+        if (raw != null && !raw.isEmpty()) {
+            for (String s : raw.split(SUBJECT_SEP)) {
+                s = s.trim();
+                if (!s.isEmpty() && VALID_SUBJECTS.contains(s)) out.add(s);
+            }
+        }
+        return out.isEmpty()
+                ? new LinkedHashSet<>(Arrays.asList(DEFAULT_QUESTION_SUBJECTS)) : out;
+    }
+
+    public boolean isSubjectEnabled(String subject) {
+        return getSubjects().contains(subject);
+    }
+
+    /** R03 L2：关闭后集合将为空 → 拒绝写入并返回 false（不静默写空） */
+    public boolean setSubjectEnabled(String subject, boolean enabled) {
+        if (!VALID_SUBJECTS.contains(subject)) return false;
+        Set<String> cur = new HashSet<>(getSubjects());
+        if (enabled) {
+            cur.add(subject);
+        } else {
+            if (cur.size() <= 1 && cur.contains(subject)) return false;  // 最后一个不可取消
+            cur.remove(subject);
+        }
+        prefs.edit().putString(KEY_QUESTION_SUBJECTS, joinSubjects(cur)).apply();
+        return true;
+    }
+
+    private String joinSubjects(Set<String> set) {
+        StringBuilder sb = new StringBuilder();
+        for (String s : SUBJECT_ORDER) {
+            if (set.contains(s)) {
+                if (sb.length() > 0) sb.append(SUBJECT_SEP);
+                sb.append(s);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** 构造期落盘默认值（R04：键缺失→写入，覆盖新装与升级，无分支） */
+    private void migrateQuestionDefaults() {
+        if (!prefs.contains(KEY_QUESTION_GRADE)) {
+            prefs.edit().putInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE).apply();
+        }
+        if (!prefs.contains(KEY_QUESTION_SUBJECTS)) {
+            prefs.edit().putString(KEY_QUESTION_SUBJECTS, DEFAULT_QUESTION_SUBJECTS).apply();
+        }
     }
 
     /**
