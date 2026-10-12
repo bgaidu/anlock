@@ -19,9 +19,15 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import com.kidslock.app.question.Grade;
+import com.kidslock.app.question.Subject;
+
+import java.util.Set;
 
 /**
  * 设置主界面。
@@ -41,6 +47,13 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvWatchTime;
     private TextView tvUnlockCount;
     private Button btnGuardStatus;
+
+    // 出题设置（年级 / 科目）
+    private TextView tvQuestionGrade;
+    private TextView tvQuestionSubjects;
+    private Button[] btnGrades = new Button[7];
+    private Button btnSubjectPinyin;
+    private Button btnSubjectMath;
 
     // 家长 PIN 门禁：设置页每次进入（含从后台返回）都要求重新验证，
     // 否则孩子从桌面打开应用就能改参数、停计时
@@ -140,6 +153,18 @@ public class MainActivity extends AppCompatActivity {
         tvWatchTime = findViewById(R.id.tvWatchTime);
         tvUnlockCount = findViewById(R.id.tvUnlockCount);
         btnGuardStatus = findViewById(R.id.btnGuardStatus);
+
+        tvQuestionGrade = findViewById(R.id.tvQuestionGrade);
+        tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects);
+        btnGrades[0] = findViewById(R.id.btnGrade0);
+        btnGrades[1] = findViewById(R.id.btnGrade1);
+        btnGrades[2] = findViewById(R.id.btnGrade2);
+        btnGrades[3] = findViewById(R.id.btnGrade3);
+        btnGrades[4] = findViewById(R.id.btnGrade4);
+        btnGrades[5] = findViewById(R.id.btnGrade5);
+        btnGrades[6] = findViewById(R.id.btnGrade6);
+        btnSubjectPinyin = findViewById(R.id.btnSubjectPinyin);
+        btnSubjectMath = findViewById(R.id.btnSubjectMath);
         btnGuardStatus.setOnClickListener(v -> {
             if (RecoveryAccessibilityService.isServiceEnabled(this)) {
                 toast("守护服务已开启");
@@ -285,6 +310,20 @@ public class MainActivity extends AppCompatActivity {
         // 设置PIN码
         findViewById(R.id.btnSetPin).setOnClickListener(v -> showPinDialog());
 
+        // 出题年级（7 档单选）
+        for (int g = 0; g <= 6; g++) {
+            final int grade = g;
+            btnGrades[g].setOnClickListener(v -> {
+                pref.setGrade(grade);
+                updateStatus();
+                toast(getString(R.string.toast_grade_set, Grade.fullLabel(grade)));
+            });
+        }
+
+        // 出题科目（toggle，至少保留一个）
+        btnSubjectPinyin.setOnClickListener(v -> onSubjectToggle(Subject.PINYIN));
+        btnSubjectMath.setOnClickListener(v -> onSubjectToggle(Subject.MATH));
+
         // 开始计时
         findViewById(R.id.btnStartTimer).setOnClickListener(v -> {
             int minutes = pref.getWatchLimitMinutes();
@@ -377,6 +416,15 @@ public class MainActivity extends AppCompatActivity {
         // 解锁题数
         tvUnlockCount.setText("解锁题数：" + pref.getUnlockCount() + " 道连续答对");
 
+        // 出题年级 / 科目（权威显示 + 按钮选中态走文字通道）
+        tvQuestionGrade.setText("年级：" + Grade.fullLabel(pref.getGrade()));
+        tvQuestionSubjects.setText("科目：" + enabledSubjectsText());
+        for (int g = 0; g <= 6; g++) {
+            setButtonSelected(btnGrades[g], g == pref.getGrade(), Grade.shortLabel(g));
+        }
+        setButtonSelected(btnSubjectPinyin, pref.isSubjectEnabled(Subject.PINYIN), Subject.label(Subject.PINYIN));
+        setButtonSelected(btnSubjectMath, pref.isSubjectEnabled(Subject.MATH), Subject.label(Subject.MATH));
+
         // 状态
         if (pref.isLocked()) {
             tvStatus.setText("当前状态：已锁屏");
@@ -404,5 +452,51 @@ public class MainActivity extends AppCompatActivity {
 
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
+    /** 按 Subject.ORDER 罗列已启用科目（中文名，以 "、" 连接） */
+    @NonNull
+    private String enabledSubjectsText() {
+        StringBuilder sb = new StringBuilder();
+        for (String s : Subject.ORDER) {
+            if (pref.isSubjectEnabled(s)) {
+                if (sb.length() > 0) sb.append("、");
+                sb.append(Subject.label(s));
+            }
+        }
+        return sb.toString();
+    }
+
+    /** 按钮选中态走文字通道：✓+label 绿字 / 普通 label+默认字色（R17，不复用 state_selected） */
+    private void setButtonSelected(@NonNull Button btn, boolean selected, @NonNull String label) {
+        if (selected) {
+            btn.setText("✓" + label);
+            btn.setTextColor(ContextCompat.getColor(this, R.color.correct_green));
+        } else {
+            btn.setText(label);
+            btn.setTextColor(ContextCompat.getColor(this, R.color.btn_text));
+        }
+    }
+
+    /** 科目 toggle：最后一个是唯一启用科目时不生效（R03 L1） */
+    private void onSubjectToggle(@NonNull String subject) {
+        boolean cur = pref.isSubjectEnabled(subject);
+        if (cur && isOnlyEnabled(subject)) {
+            toast(getString(R.string.toast_keep_one_subject));
+            return; // 保持选中
+        }
+        boolean ok = pref.setSubjectEnabled(subject, !cur);
+        if (!ok) {
+            toast(getString(R.string.toast_keep_one_subject));
+            return;
+        }
+        updateStatus();
+        toast(getString(cur ? R.string.toast_subject_off : R.string.toast_subject_on, Subject.label(subject)));
+    }
+
+    /** subject 是否为当前唯一启用的科目 */
+    private boolean isOnlyEnabled(@NonNull String subject) {
+        Set<String> s = pref.getSubjects();
+        return s.size() == 1 && s.contains(subject);
     }
 }

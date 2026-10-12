@@ -25,6 +25,16 @@
     <string name="btn_lock_now">立即锁屏</string>
     <string name="btn_set_pin">设置家长PIN</string>
 
+    <!-- 出题设置（年级 / 科目） -->
+    <string name="section_question">出题设置</string>
+    <string name="btn_subject_pinyin">拼音</string>
+    <string name="btn_subject_math">数学</string>
+    <string name="toast_grade_set">年级设为 %s</string>
+    <string name="toast_subject_on">已开启 %s</string>
+    <string name="toast_subject_off">已关闭 %s</string>
+    <string name="toast_keep_one_subject">至少保留一个科目</string>
+    <string name="desc_bottom">计时开始后，到时自动锁屏\n重启设备后仍保持锁屏\n解锁需连续答对对应年级与科目的题目</string>
+
     <!-- Notification -->
     <string name="notif_title">儿童锁屏运行中</string>
     <string name="notif_remaining">剩余观看时间</string>

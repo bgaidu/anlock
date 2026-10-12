@@ -21,6 +21,8 @@
     <dimen name="btn_min_width">120dp</dimen>
     <dimen name="btn_corner">8dp</dimen>
     <dimen name="btn_margin">8dp</dimen>
+    <dimen name="btn_grade_width">72dp</dimen>
+    <dimen name="btn_subject_width">132dp</dimen>
 
     <!-- 间距 -->
     <dimen name="spacing_small">8dp</dimen>
