@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -15,6 +16,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+
+import com.kidslock.app.question.Question;
+import com.kidslock.app.question.QuestionEngine;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,18 +33,18 @@ import java.util.List;
 public class LockScreenActivity extends AppCompatActivity {
 
     private PrefManager pref;
-    private CharacterBank bank;
+    private QuestionEngine engine;
 
     // 题目状态
-    private CharacterBank.CharEntry currentChar;
+    private Question currentQuestion;
     private List<String> currentOptions;
-    private String correctAnswer;
     private int correctCount = 0;
     private int requiredCount;
 
     // Views - 认字模式
     private View layoutMain;
     private TextView tvCharacter;
+    private TextView tvQuestionHint;
     private TextView tvProgress;
     private TextView tvFeedback;
     private Button[] optionButtons;
@@ -98,7 +102,7 @@ public class LockScreenActivity extends AppCompatActivity {
         }
 
         pref = new PrefManager(this);
-        bank = new CharacterBank();
+        engine = QuestionEngine.create(this, pref);
         requiredCount = pref.getUnlockCount();
 
         // 窗口属性：全屏，保持显示
@@ -121,6 +125,7 @@ public class LockScreenActivity extends AppCompatActivity {
         // 认字主界面
         layoutMain = findViewById(R.id.layoutMain);
         tvCharacter = findViewById(R.id.tvCharacter);
+        tvQuestionHint = findViewById(R.id.tvQuestionHint);
         tvProgress = findViewById(R.id.tvProgress);
         tvFeedback = findViewById(R.id.tvFeedback);
 
@@ -169,11 +174,17 @@ public class LockScreenActivity extends AppCompatActivity {
     // ==================== 认字题目 ====================
 
     private void loadNextQuestion() {
-        currentChar = bank.getRandomCharacter();
-        correctAnswer = currentChar.pinyin;
-        currentOptions = bank.getOptions(correctAnswer);
+        currentQuestion = engine.nextQuestion();
+        currentOptions = currentQuestion.options;
 
-        tvCharacter.setText(currentChar.character);
+        tvCharacter.setText(currentQuestion.stem);
+        tvQuestionHint.setText(currentQuestion.hint);
+
+        // 题干字号按 stemStyle 切档（HANZI 大字 130sp / NORMAL 算式 56sp）
+        float textSize = getResources().getDimension(
+                currentQuestion.stemStyle == Question.StemStyle.HANZI
+                        ? R.dimen.text_hanzi : R.dimen.text_stem);
+        tvCharacter.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
 
         for (int i = 0; i < optionButtons.length && i < currentOptions.size(); i++) {
             optionButtons[i].setText(currentOptions.get(i));
@@ -191,8 +202,8 @@ public class LockScreenActivity extends AppCompatActivity {
             b.setEnabled(false);
         }
 
-        String selected = currentOptions.get(index);
-        if (selected.equals(correctAnswer)) {
+        // 判题改为索引比较（设计 §9.2 / D1：Activity 内零科目分支）
+        if (index == currentQuestion.correctIndex) {
             // 答对了
             correctCount++;
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct);
@@ -210,9 +221,9 @@ public class LockScreenActivity extends AppCompatActivity {
             // 答错了
             correctCount = 0;
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong);
-            // 高亮正确答案
+            // 高亮正确选项（按索引，避免字符串比较）
             for (int i = 0; i < currentOptions.size(); i++) {
-                if (currentOptions.get(i).equals(correctAnswer)) {
+                if (i == currentQuestion.correctIndex) {
                     optionButtons[i].setBackgroundResource(R.drawable.btn_option_correct);
                     break;
                 }
