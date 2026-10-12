@@ -91,7 +91,7 @@ task verifyQuestionBanks {
         if (!javaFile.exists()) throw new GradleException("缺失内置兜底字表: ${javaFile}")
         def text = javaFile.text
         def builtin = new HashSet()
-        def matcher = text =~ /new Entry\("([^"]*)",\s*"([^"]*)"\)/
+        def matcher = text =~ /new BankEntry\("([^"]*)",\s*"([^"]*)"\)/
         while (matcher.find()) { builtin << "${matcher.group(1)}|${matcher.group(2)}" }
         def asset = new HashSet(entries.collect { "${it.k}|${it.v}" })
         if (builtin != asset) throw new GradleException("pinyin_5.json 与 BuiltinPinyinBank 不一致（字表漂移）")
