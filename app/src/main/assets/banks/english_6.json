@@ -1,0 +1,434 @@
+{
+  "subject": "english",
+  "grade": 6,
+  "entries": [
+    {
+      "k": "photosynthesis",
+      "v": "光合作用"
+    },
+    {
+      "k": "ecosystem",
+      "v": "生态系统"
+    },
+    {
+      "k": "atmosphere",
+      "v": "大气层"
+    },
+    {
+      "k": "organism",
+      "v": "生物"
+    },
+    {
+      "k": "cell",
+      "v": "细胞"
+    },
+    {
+      "k": "gene",
+      "v": "基因"
+    },
+    {
+      "k": "evolution",
+      "v": "进化"
+    },
+    {
+      "k": "molecule",
+      "v": "分子"
+    },
+    {
+      "k": "atom",
+      "v": "原子"
+    },
+    {
+      "k": "element",
+      "v": "元素"
+    },
+    {
+      "k": "compound",
+      "v": "化合物"
+    },
+    {
+      "k": "reaction",
+      "v": "反应"
+    },
+    {
+      "k": "force",
+      "v": "力"
+    },
+    {
+      "k": "motion",
+      "v": "运动"
+    },
+    {
+      "k": "velocity",
+      "v": "速度"
+    },
+    {
+      "k": "mass",
+      "v": "质量"
+    },
+    {
+      "k": "density",
+      "v": "密度"
+    },
+    {
+      "k": "temperature",
+      "v": "温度"
+    },
+    {
+      "k": "pressure",
+      "v": "压力"
+    },
+    {
+      "k": "volume",
+      "v": "体积"
+    },
+    {
+      "k": "circuit",
+      "v": "电路"
+    },
+    {
+      "k": "current",
+      "v": "电流"
+    },
+    {
+      "k": "voltage",
+      "v": "电压"
+    },
+    {
+      "k": "magnet",
+      "v": "磁铁"
+    },
+    {
+      "k": "wave",
+      "v": "波"
+    },
+    {
+      "k": "frequency",
+      "v": "频率"
+    },
+    {
+      "k": "spectrum",
+      "v": "光谱"
+    },
+    {
+      "k": "telescope",
+      "v": "望远镜"
+    },
+    {
+      "k": "microscope",
+      "v": "显微镜"
+    },
+    {
+      "k": "laboratory",
+      "v": "实验室"
+    },
+    {
+      "k": "hypothesis",
+      "v": "假设"
+    },
+    {
+      "k": "theory",
+      "v": "理论"
+    },
+    {
+      "k": "variable",
+      "v": "变量"
+    },
+    {
+      "k": "constant",
+      "v": "常数"
+    },
+    {
+      "k": "calculation",
+      "v": "计算"
+    },
+    {
+      "k": "equation",
+      "v": "方程"
+    },
+    {
+      "k": "probability",
+      "v": "概率"
+    },
+    {
+      "k": "statistics",
+      "v": "统计"
+    },
+    {
+      "k": "continent",
+      "v": "大陆"
+    },
+    {
+      "k": "hemisphere",
+      "v": "半球"
+    },
+    {
+      "k": "equator",
+      "v": "赤道"
+    },
+    {
+      "k": "latitude",
+      "v": "纬度"
+    },
+    {
+      "k": "longitude",
+      "v": "经度"
+    },
+    {
+      "k": "glacier",
+      "v": "冰川"
+    },
+    {
+      "k": "canyon",
+      "v": "峡谷"
+    },
+    {
+      "k": "plateau",
+      "v": "高原"
+    },
+    {
+      "k": "peninsula",
+      "v": "半岛"
+    },
+    {
+      "k": "strait",
+      "v": "海峡"
+    },
+    {
+      "k": "bay",
+      "v": "海湾"
+    },
+    {
+      "k": "harbor",
+      "v": "港口"
+    },
+    {
+      "k": "delta",
+      "v": "三角洲"
+    },
+    {
+      "k": "tundra",
+      "v": "苔原"
+    },
+    {
+      "k": "savanna",
+      "v": "稀树草原"
+    },
+    {
+      "k": "reef",
+      "v": "礁"
+    },
+    {
+      "k": "dune",
+      "v": "沙丘"
+    },
+    {
+      "k": "civilization",
+      "v": "文明"
+    },
+    {
+      "k": "dynasty",
+      "v": "王朝"
+    },
+    {
+      "k": "revolution",
+      "v": "革命"
+    },
+    {
+      "k": "independence",
+      "v": "独立"
+    },
+    {
+      "k": "constitution",
+      "v": "宪法"
+    },
+    {
+      "k": "parliament",
+      "v": "议会"
+    },
+    {
+      "k": "democracy",
+      "v": "民主"
+    },
+    {
+      "k": "election",
+      "v": "选举"
+    },
+    {
+      "k": "citizen",
+      "v": "公民"
+    },
+    {
+      "k": "immigrant",
+      "v": "移民"
+    },
+    {
+      "k": "ancestor",
+      "v": "祖先"
+    },
+    {
+      "k": "heritage",
+      "v": "遗产"
+    },
+    {
+      "k": "monument",
+      "v": "纪念碑"
+    },
+    {
+      "k": "archaeology",
+      "v": "考古学"
+    },
+    {
+      "k": "biography",
+      "v": "传记"
+    },
+    {
+      "k": "autobiography",
+      "v": "自传"
+    },
+    {
+      "k": "metaphor",
+      "v": "隐喻"
+    },
+    {
+      "k": "rhythm",
+      "v": "节奏"
+    },
+    {
+      "k": "harmony",
+      "v": "和谐"
+    },
+    {
+      "k": "perspective",
+      "v": "视角"
+    },
+    {
+      "k": "contradiction",
+      "v": "矛盾"
+    },
+    {
+      "k": "phenomenon",
+      "v": "现象"
+    },
+    {
+      "k": "catastrophe",
+      "v": "灾难"
+    },
+    {
+      "k": "sustainable",
+      "v": "可持续的"
+    },
+    {
+      "k": "efficient",
+      "v": "高效的"
+    },
+    {
+      "k": "inevitable",
+      "v": "不可避免的"
+    },
+    {
+      "k": "ambiguous",
+      "v": "模糊的"
+    },
+    {
+      "k": "comprehensive",
+      "v": "全面的"
+    },
+    {
+      "k": "fundamental",
+      "v": "基本的"
+    },
+    {
+      "k": "simultaneous",
+      "v": "同时的"
+    },
+    {
+      "k": "approximately",
+      "v": "大约"
+    },
+    {
+      "k": "consequently",
+      "v": "因此"
+    },
+    {
+      "k": "furthermore",
+      "v": "此外"
+    },
+    {
+      "k": "communicate",
+      "v": "交流"
+    },
+    {
+      "k": "consolidate",
+      "v": "巩固"
+    },
+    {
+      "k": "demonstrate",
+      "v": "演示"
+    },
+    {
+      "k": "elaborate",
+      "v": "详述"
+    },
+    {
+      "k": "evaluate",
+      "v": "评估"
+    },
+    {
+      "k": "illustrate",
+      "v": "说明"
+    },
+    {
+      "k": "negotiate",
+      "v": "谈判"
+    },
+    {
+      "k": "participate",
+      "v": "参与"
+    },
+    {
+      "k": "speculate",
+      "v": "推测"
+    },
+    {
+      "k": "symbolize",
+      "v": "象征"
+    },
+    {
+      "k": "transform",
+      "v": "转变"
+    },
+    {
+      "k": "utilize",
+      "v": "利用"
+    },
+    {
+      "k": "visualize",
+      "v": "使形象化"
+    },
+    {
+      "k": "accommodate",
+      "v": "容纳"
+    },
+    {
+      "k": "accumulate",
+      "v": "积累"
+    },
+    {
+      "k": "appreciate",
+      "v": "欣赏"
+    },
+    {
+      "k": "contribute",
+      "v": "贡献"
+    },
+    {
+      "k": "distinguish",
+      "v": "区分"
+    },
+    {
+      "k": "emphasize",
+      "v": "强调"
+    }
+  ]
+}

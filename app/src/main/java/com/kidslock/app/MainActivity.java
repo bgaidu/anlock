@@ -54,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
     private Button[] btnGrades = new Button[7];
     private Button btnSubjectPinyin;
     private Button btnSubjectMath;
+    private Button btnSubjectEnglish;
 
     // 家长 PIN 门禁：设置页每次进入（含从后台返回）都要求重新验证，
     // 否则孩子从桌面打开应用就能改参数、停计时
@@ -165,6 +166,7 @@ public class MainActivity extends AppCompatActivity {
         btnGrades[6] = findViewById(R.id.btnGrade6);
         btnSubjectPinyin = findViewById(R.id.btnSubjectPinyin);
         btnSubjectMath = findViewById(R.id.btnSubjectMath);
+        btnSubjectEnglish = findViewById(R.id.btnSubjectEnglish);
         btnGuardStatus.setOnClickListener(v -> {
             if (RecoveryAccessibilityService.isServiceEnabled(this)) {
                 toast("守护服务已开启");
@@ -323,6 +325,7 @@ public class MainActivity extends AppCompatActivity {
         // 出题科目（toggle，至少保留一个）
         btnSubjectPinyin.setOnClickListener(v -> onSubjectToggle(Subject.PINYIN));
         btnSubjectMath.setOnClickListener(v -> onSubjectToggle(Subject.MATH));
+        btnSubjectEnglish.setOnClickListener(v -> onSubjectToggle(Subject.ENGLISH));
 
         // 开始计时
         findViewById(R.id.btnStartTimer).setOnClickListener(v -> {
@@ -424,6 +427,7 @@ public class MainActivity extends AppCompatActivity {
         }
         setButtonSelected(btnSubjectPinyin, pref.isSubjectEnabled(Subject.PINYIN), Subject.label(Subject.PINYIN));
         setButtonSelected(btnSubjectMath, pref.isSubjectEnabled(Subject.MATH), Subject.label(Subject.MATH));
+        setButtonSelected(btnSubjectEnglish, pref.isSubjectEnabled(Subject.ENGLISH), Subject.label(Subject.ENGLISH));
 
         // 状态
         if (pref.isLocked()) {

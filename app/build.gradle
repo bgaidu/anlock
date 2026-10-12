@@ -96,6 +96,19 @@ task verifyQuestionBanks {
         def asset = new HashSet(entries.collect { "${it.k}|${it.v}" })
         if (builtin != asset) throw new GradleException("pinyin_5.json 与 BuiltinPinyinBank 不一致（字表漂移）")
         println "verifyQuestionBanks: pinyin_5.json OK（${entries.size()} 条，${distinctV.size()} 种拼音）"
+
+        // 英语词表：english_0..6.json（PRD R12，D3 落地）。每级条目 >=60、k/v 非空、去重释义 >=4
+        for (int g = 0; g <= 6; g++) {
+            def engFile = file("src/main/assets/banks/english_${g}.json")
+            if (!engFile.exists()) throw new GradleException("缺失英语题库资产: ${engFile}")
+            def eObj = slurper.parse(engFile)
+            def eEntries = eObj.entries
+            if (eEntries == null || eEntries.isEmpty()) throw new GradleException("english_${g}.json 条目为空")
+            if (eEntries.size() < 60) throw new GradleException("english_${g}.json 条目数应 >=60，实际 ${eEntries.size()}")
+            def eDistinctV = new HashSet(eEntries.collect { it.v })
+            if (eDistinctV.size() < 4) throw new GradleException("english_${g}.json 去重释义 < 4（实际 ${eDistinctV.size()}）")
+            println "verifyQuestionBanks: english_${g}.json OK（${eEntries.size()} 条，${eDistinctV.size()} 种释义）"
+        }
     }
 }
 preBuild.dependsOn verifyQuestionBanks

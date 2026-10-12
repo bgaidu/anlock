@@ -8,8 +8,8 @@ import java.util.Set;
 
 /**
  * 科目常量与中文名映射。
- * 本期仅 {@link #PINYIN} + {@link #MATH} 可启用；{@link #ENGLISH} 按 D3 整体移至下期，
- * 仅保留常量与合法集合作为扩展口（下期接入英语只需补 english_*.json + 把 english 加入合法集合）。
+ * 本期 {@link #PINYIN} + {@link #MATH} + {@link #ENGLISH} 均可启用（英语 D3 已落地：
+ * english_0..6.json + EnglishProvider + 合法集合已就位）。
  *
  * 约定（设计 §9.1）：科目字面量只允许引用本类的 PINYIN/MATH/ENGLISH 常量，禁止散落字符串。
  */
@@ -21,9 +21,9 @@ public final class Subject {
     /** 固定展示 / 校验顺序：拼音 → 数学 → 英语（getSubjects 按此排序） */
     public static final String[] ORDER = {PINYIN, MATH, ENGLISH};
 
-    /** 本期可启用科目集合（english 暂不可启用，但仍是合法常量） */
+    /** 本期可启用科目集合（拼音 / 数学 / 英语，D3 英语已落地） */
     private static final Set<String> PHASE_ALLOWED =
-            new HashSet<>(Arrays.asList(PINYIN, MATH));
+            new HashSet<>(Arrays.asList(PINYIN, MATH, ENGLISH));
     /** 所有已知科目常量（用于合法性校验，包含 english） */
     private static final Set<String> KNOWN =
             new HashSet<>(Arrays.asList(PINYIN, MATH, ENGLISH));
@@ -37,7 +37,7 @@ public final class Subject {
         return KNOWN.contains(subject);
     }
 
-    /** 是否为本期可启用科目（拼音/数学） */
+    /** 是否为本期可启用科目（拼音/数学/英语） */
     public static boolean isPhaseAllowed(@NonNull String subject) {
         return PHASE_ALLOWED.contains(subject);
     }

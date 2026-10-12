@@ -69,8 +69,8 @@ public class PrefManager {
     private static final String DEFAULT_QUESTION_SUBJECTS = "pinyin";
     private static final String SUBJECT_SEP = ",";
     private static final Set<String> VALID_SUBJECTS =
-            new HashSet<>(Arrays.asList("pinyin", "math"));
-    private static final String[] SUBJECT_ORDER = {"pinyin", "math"}; // 固定展示顺序
+            new HashSet<>(Arrays.asList("pinyin", "math", "english"));
+    private static final String[] SUBJECT_ORDER = {"pinyin", "math", "english"}; // 固定展示顺序
 
     public PrefManager(Context context) {
         appContext = context.getApplicationContext();
@@ -369,7 +369,7 @@ public class PrefManager {
         return true;
     }
 
-    /** 逻辑类型为 Set<String>（D3：为下期英语留口）。脏值/空段/未知 id 一律过滤，空则回退 {pinyin} */
+    /** 逻辑类型为 Set<String>。脏值/空段/未知 id 一律过滤，空则回退 {pinyin}（英语默认关闭） */
     public Set<String> getSubjects() {
         Set<String> out = new LinkedHashSet<>();
         String raw = prefs.getString(KEY_QUESTION_SUBJECTS, null);

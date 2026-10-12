@@ -60,8 +60,9 @@ public final class QuestionEngine {
                 list.add(new PinyinProvider(ctx));
             } else if (Subject.MATH.equals(s)) {
                 list.add(new MathProvider(ctx));
+            } else if (Subject.ENGLISH.equals(s)) {
+                list.add(new EnglishProvider(ctx));
             }
-            // english 下期
         }
 
         if (list.isEmpty()) {

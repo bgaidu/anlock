@@ -1,0 +1,334 @@
+{
+  "subject": "english",
+  "grade": 5,
+  "entries": [
+    {
+      "k": "essay",
+      "v": "作文"
+    },
+    {
+      "k": "report",
+      "v": "报告"
+    },
+    {
+      "k": "research",
+      "v": "研究"
+    },
+    {
+      "k": "project",
+      "v": "项目"
+    },
+    {
+      "k": "presentation",
+      "v": "演讲"
+    },
+    {
+      "k": "debate",
+      "v": "辩论"
+    },
+    {
+      "k": "paragraph",
+      "v": "段落"
+    },
+    {
+      "k": "grammar",
+      "v": "语法"
+    },
+    {
+      "k": "vocabulary",
+      "v": "词汇"
+    },
+    {
+      "k": "pronunciation",
+      "v": "发音"
+    },
+    {
+      "k": "spelling",
+      "v": "拼写"
+    },
+    {
+      "k": "translate",
+      "v": "翻译"
+    },
+    {
+      "k": "summarize",
+      "v": "总结"
+    },
+    {
+      "k": "analyze",
+      "v": "分析"
+    },
+    {
+      "k": "compare",
+      "v": "比较"
+    },
+    {
+      "k": "contrast",
+      "v": "对比"
+    },
+    {
+      "k": "conclude",
+      "v": "结论"
+    },
+    {
+      "k": "evidence",
+      "v": "证据"
+    },
+    {
+      "k": "opinion",
+      "v": "观点"
+    },
+    {
+      "k": "solution",
+      "v": "解决方案"
+    },
+    {
+      "k": "method",
+      "v": "方法"
+    },
+    {
+      "k": "system",
+      "v": "系统"
+    },
+    {
+      "k": "process",
+      "v": "过程"
+    },
+    {
+      "k": "result",
+      "v": "结果"
+    },
+    {
+      "k": "reason",
+      "v": "原因"
+    },
+    {
+      "k": "effect",
+      "v": "效果"
+    },
+    {
+      "k": "influence",
+      "v": "影响"
+    },
+    {
+      "k": "decision",
+      "v": "决定"
+    },
+    {
+      "k": "choice",
+      "v": "选择"
+    },
+    {
+      "k": "challenge",
+      "v": "挑战"
+    },
+    {
+      "k": "opportunity",
+      "v": "机会"
+    },
+    {
+      "k": "responsibility",
+      "v": "责任"
+    },
+    {
+      "k": "freedom",
+      "v": "自由"
+    },
+    {
+      "k": "right",
+      "v": "权利"
+    },
+    {
+      "k": "duty",
+      "v": "职责"
+    },
+    {
+      "k": "society",
+      "v": "社会"
+    },
+    {
+      "k": "culture",
+      "v": "文化"
+    },
+    {
+      "k": "tradition",
+      "v": "传统"
+    },
+    {
+      "k": "custom",
+      "v": "习俗"
+    },
+    {
+      "k": "government",
+      "v": "政府"
+    },
+    {
+      "k": "law",
+      "v": "法律"
+    },
+    {
+      "k": "economy",
+      "v": "经济"
+    },
+    {
+      "k": "trade",
+      "v": "贸易"
+    },
+    {
+      "k": "industry",
+      "v": "工业"
+    },
+    {
+      "k": "technology",
+      "v": "科技"
+    },
+    {
+      "k": "progress",
+      "v": "进步"
+    },
+    {
+      "k": "future",
+      "v": "未来"
+    },
+    {
+      "k": "past",
+      "v": "过去"
+    },
+    {
+      "k": "present",
+      "v": "现在"
+    },
+    {
+      "k": "memory",
+      "v": "记忆"
+    },
+    {
+      "k": "dream",
+      "v": "梦想"
+    },
+    {
+      "k": "goal",
+      "v": "目标"
+    },
+    {
+      "k": "plan",
+      "v": "计划"
+    },
+    {
+      "k": "habit",
+      "v": "习惯"
+    },
+    {
+      "k": "attitude",
+      "v": "态度"
+    },
+    {
+      "k": "value",
+      "v": "价值"
+    },
+    {
+      "k": "belief",
+      "v": "信念"
+    },
+    {
+      "k": "knowledge",
+      "v": "知识"
+    },
+    {
+      "k": "wisdom",
+      "v": "智慧"
+    },
+    {
+      "k": "creativity",
+      "v": "创造力"
+    },
+    {
+      "k": "imagination",
+      "v": "想象力"
+    },
+    {
+      "k": "curiosity",
+      "v": "好奇心"
+    },
+    {
+      "k": "patience",
+      "v": "耐心"
+    },
+    {
+      "k": "confidence",
+      "v": "信心"
+    },
+    {
+      "k": "courage",
+      "v": "勇气"
+    },
+    {
+      "k": "honesty",
+      "v": "诚实"
+    },
+    {
+      "k": "kindness",
+      "v": "善良"
+    },
+    {
+      "k": "politeness",
+      "v": "礼貌"
+    },
+    {
+      "k": "generosity",
+      "v": "慷慨"
+    },
+    {
+      "k": "fairness",
+      "v": "公平"
+    },
+    {
+      "k": "peace",
+      "v": "和平"
+    },
+    {
+      "k": "war",
+      "v": "战争"
+    },
+    {
+      "k": "conflict",
+      "v": "冲突"
+    },
+    {
+      "k": "cooperation",
+      "v": "合作"
+    },
+    {
+      "k": "competition",
+      "v": "竞争"
+    },
+    {
+      "k": "victory",
+      "v": "胜利"
+    },
+    {
+      "k": "defeat",
+      "v": "失败"
+    },
+    {
+      "k": "problem",
+      "v": "问题"
+    },
+    {
+      "k": "subject",
+      "v": "科目"
+    },
+    {
+      "k": "science",
+      "v": "科学"
+    },
+    {
+      "k": "history",
+      "v": "历史"
+    },
+    {
+      "k": "geography",
+      "v": "地理"
+    }
+  ]
+}

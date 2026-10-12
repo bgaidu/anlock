@@ -393,7 +393,8 @@
                 android:textColor="@color/btn_text"
                 android:focusable="true"
                 android:clickable="true"
-                android:nextFocusLeft="@id/btnSubjectMath" />
+                android:nextFocusLeft="@id/btnSubjectEnglish"
+                android:nextFocusRight="@id/btnSubjectMath" />
             <Button android:id="@+id/btnSubjectMath"
                 android:layout_width="@dimen/btn_subject_width"
                 android:layout_height="@dimen/btn_height"
@@ -406,6 +407,21 @@
                 android:textColor="@color/btn_text"
                 android:focusable="true"
                 android:clickable="true"
+                android:nextFocusLeft="@id/btnSubjectPinyin"
+                android:nextFocusRight="@id/btnSubjectEnglish" />
+            <Button android:id="@+id/btnSubjectEnglish"
+                android:layout_width="@dimen/btn_subject_width"
+                android:layout_height="@dimen/btn_height"
+                android:layout_margin="@dimen/btn_margin"
+                android:singleLine="true"
+                android:textAllCaps="false"
+                android:text="@string/btn_subject_english"
+                android:textSize="@dimen/text_body"
+                android:background="@drawable/btn_settings_bg"
+                android:textColor="@color/btn_text"
+                android:focusable="true"
+                android:clickable="true"
+                android:nextFocusLeft="@id/btnSubjectMath"
                 android:nextFocusRight="@id/btnSubjectPinyin" />
         </LinearLayout>
 
