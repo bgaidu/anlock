@@ -66,7 +66,7 @@ def make_banner(path):
     # 副标题
     f2 = get_font(20)
     d.text((x0, 95), "Kids TV Lock", font=f2, fill=GREY)
-    d.text((x0, 122), "开机自启 · 定时锁屏 · 认字解锁", font=get_font(14), fill=GREY)
+    d.text((x0, 122), "开机自启 · 定时锁屏 · 答题解锁", font=get_font(14), fill=GREY)
     img.save(path)
     print(f"  banner {W}x{H} -> {path}")
 

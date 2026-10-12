@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">儿童锁屏</string>
-    <string name="app_description">儿童锁屏 · 认字解锁</string>
+    <string name="app_description">儿童锁屏 · 答题解锁</string>
 
     <!-- 无障碍守护服务（系统设置-无障碍里展示的说明） -->
     <string name="a11y_service_description">儿童锁屏守护服务：开机自动恢复锁屏与计时保护，防止应用被系统清理后失效。为儿童锁定功能正常工作，请保持开启。</string>
