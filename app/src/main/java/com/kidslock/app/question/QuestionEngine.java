@@ -58,8 +58,10 @@ public final class QuestionEngine {
             if (!subjects.contains(s)) continue;
             if (Subject.PINYIN.equals(s)) {
                 list.add(new PinyinProvider(ctx));
+            } else if (Subject.MATH.equals(s)) {
+                list.add(new MathProvider(ctx));
             }
-            // MathProvider 在 Batch 3 加入；english 下期
+            // english 下期
         }
 
         if (list.isEmpty()) {
