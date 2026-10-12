@@ -114,14 +114,20 @@ kidslock/
 
 ## 编译方法
 
+> **环境准备（每台机器各做一次）**
+> - **JDK 17**：AGP 8.2.0 / Gradle 8.5 需要 **JDK 17**；JDK 21/25 会导致构建失败，请勿使用系统里已有的其他 JDK。
+> - **Android SDK**：**仓库不含 SDK**（`android-sdk/` 已被 `.gitignore` 排除，clone 下来不会有），需自行准备：`platforms/android-34`、`build-tools/34.0.0`、`platform-tools`，并接受 licenses。
+> - **告诉 Gradle SDK 在哪**（二选一）：在 `local.properties` 写 `sdk.dir=<SDK路径>`（该文件已被忽略，不入库），或 `export ANDROID_HOME=<SDK路径>`。
+
 ```bash
-# 需要 JDK 17 和 Android SDK
-export JAVA_HOME=<JDK路径>
-export ANDROID_HOME=<SDK路径>
+# 一律用 Gradle Wrapper 构建：仓库已自带 gradlew / gradlew.bat / gradle-wrapper.jar，
+# 无需在本机安装全局 Gradle（本机实测 which gradle 不存在），所以是 ./gradlew 而不是 gradle
 
 # 方式一：构建 debug APK（自动使用 debug keystore 签名，可直接安装）
 # 适合开发测试，但荣耀/华为等设备可能拒绝安装 debug 签名的 APK
-gradle assembleDebug
+export JAVA_HOME=<JDK17路径>
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew assembleDebug
 
 # 方式二：构建 release APK（需要配置正式发布密钥库）
 # 设置环境变量后，使用正式 keystore 签名，可在所有设备安装
@@ -129,8 +135,38 @@ export KEYSTORE_FILE=<你的.keystore路径>
 export KEYSTORE_PASSWORD=<你的密码>
 export KEY_ALIAS=<你的alias>         # 可选，默认 kidslock
 export KEY_PASSWORD=<密钥密码>       # 可选，默认同 KEYSTORE_PASSWORD
-gradle assembleRelease
+./gradlew assembleRelease
 ```
+
+**本机已验证的完整命令**（Windows / Git Bash，可直接复制执行）：
+
+```bash
+cd /d/soft/myapp/kidslock
+export JAVA_HOME=/d/soft/myapp/kidslock/.workbuddy/tools/jdk17   # 免安装 Temurin 17.0.20.1
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew assembleDebug
+```
+
+> **关于本机 JDK**：`.workbuddy/tools/jdk17` 是解压即可用的免安装 Temurin JDK 17，不写入注册表、不装到系统目录（该目录已被 `.gitignore` 忽略）。若重装系统或清理后丢失，从 Adoptium 下载 Windows x64 JDK 17 zip 解压到同名目录即可，无需安装器。
+
+> **关于网络代理（仅在本机需要）**：本机只能经本地代理 `http://127.0.0.1:54260` 上网，而 JVM 不读取 `http_proxy` 环境变量，因此 Gradle 下载依赖会失败。已在本机用户级配置文件 `%USERPROFILE%\.gradle\gradle.properties`（**在仓库之外，不会污染项目**）写入：
+> ```
+> systemProp.http.proxyHost=127.0.0.1
+> systemProp.http.proxyPort=54260
+> systemProp.https.proxyHost=127.0.0.1
+> systemProp.https.proxyPort=54260
+> ```
+> 代理地址变化时改这里即可。首次全新构建需联网下载 Gradle 8.5 与全部依赖，**实测约 7.5 分钟**（其中取分发包约 55 秒，冷构建含下载全部依赖约 6 分 33 秒，31 个任务全部执行）。之后 Gradle 分发包与依赖都缓存在 `%USERPROFILE%\.gradle`，可离线构建。
+
+**构建产物**（`app/build/outputs/apk/debug/`）：
+
+| 文件 | 说明 | 大小 |
+|---|---|---|
+| `app-universal-debug.apk` | 通用包，推荐优先使用 | ~5.5 MB |
+| `app-arm64-v8a-debug.apk` | 64 位 ARM | ~5.5 MB |
+| `app-armeabi-v7a-debug.apk` | 32 位 ARM | ~5.5 MB |
+
+> 本项目为纯 Java，无 native `.so`，因此三个包内容实际相同；安装时优先用 `app-universal-debug.apk`。
 
 > **签名说明**：
 > - **不再**为 release 构建自动回退到 debug keystore，避免"未包含任何有效的证书"错误

@@ -19,6 +19,10 @@
 gradle-app.setting
 local.properties
 
+# 本地工具链（本机专用的免安装 JDK，不纳入版本控制）
+# 只忽略 tools/，保留 .workbuddy/memory 等项目记录
+/.workbuddy/tools/
+
 # IDE
 .idea/
 *.iml
