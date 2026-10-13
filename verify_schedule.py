@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 # Standalone port of QuestionEngine.buildSchedule to verify per-subject quantity rules.
-# Mirrors the FIXED logic: caps are HARD (never exceeded). total may be < N in degenerate
-# configs (too few subjects to reach N under caps); engine wraps schedule so unlock still works.
+# Rule (D6 revision): each subject >= 1; when N > 5, cap = ceil(N/M) (M = #enabled subjects),
+#   math <= cap, english <= cap, pinyin+ciyu <= cap (HARD, never exceeded);
+#   N == 5 -> no per-subject cap. Caps hard => schedule length may be < N in degenerate configs;
+#   engine wraps schedule so unlock at N still works.
+import math
+
 PINYIN, MATH, ENGLISH, CITU = "pinyin", "math", "english", "ciyu"
 ORDER = [PINYIN, MATH, ENGLISH, CITU]
+POOL = [PINYIN, MATH, ENGLISH, CITU]  # for generating all combos in ORDER
 
-def can_add(s, counts, pin_on, ciyu_on):
+def can_add(s, counts, cap, pin_on, ciyu_on):
     if s == MATH:
-        return counts[s] < 4
+        return counts[s] < cap
     if s == ENGLISH:
-        return counts[s] < 4
+        return counts[s] < cap
     if s == PINYIN:
         if ciyu_on:
-            return (counts[PINYIN] + counts[CITU]) < 4
-        return counts[s] < 4
+            return (counts[PINYIN] + counts[CITU]) < cap
+        return counts[s] < cap
     if s == CITU:
         if pin_on:
-            return (counts[PINYIN] + counts[CITU]) < 4
-        return counts[s] < 4
+            return (counts[PINYIN] + counts[CITU]) < cap
+        return counts[s] < cap
     return True
 
 def build_schedule(subjects, total):
@@ -25,13 +30,15 @@ def build_schedule(subjects, total):
         total = 1
     subjects = [s for s in ORDER if s in subjects]
     list_ = list(subjects)
-    counts = {s: 1 for s in list_}  # each subject >= 1
+    counts = {s: 1 for s in list_}
     remaining = total - len(list_)
     if remaining < 0:
         for k in range(total, len(list_)):
             counts[list_[k]] = 0
         remaining = 0
-    apply_caps = (total == 10)
+    m = len(list_)
+    apply_caps = (total > 5)
+    cap = int(math.ceil(total / m)) if apply_caps else float("inf")
     pin_on = PINYIN in subjects
     ciyu_on = CITU in subjects
     guard = 0
@@ -41,62 +48,72 @@ def build_schedule(subjects, total):
         for s in list_:
             if remaining <= 0:
                 break
-            if (not apply_caps) or can_add(s, counts, pin_on, ciyu_on):
+            if (not apply_caps) or can_add(s, counts, cap, pin_on, ciyu_on):
                 counts[s] += 1
                 remaining -= 1
                 added = True
         if not added:
             break
-    # NO spillover: caps are HARD. remaining (if any) is discarded.
     return counts
 
-def check(name, subjects, total):
-    counts = build_schedule(subjects, total)
-    total_actual = sum(counts[s] for s in subjects)
+def all_combos():
+    res = []
+    n = len(POOL)
+    for mask in range(1, 1 << n):
+        combo = [POOL[i] for i in range(n) if mask & (1 << i)]
+        res.append(combo)
+    return res
+
+def achievable_max(combo, total):
+    # Max sum reachable under the per-subject caps for this (combo, total).
+    # Three independent cap buckets: 数学, 英语, 拼音+语文(合).
+    if total <= 5:
+        return total  # N=5 -> no caps; fills to total (total >= len(combo) always for our options)
+    m = len(combo)
+    cap = int(math.ceil(total / m))
+    am = 0
+    if MATH in combo:
+        am += cap
+    if ENGLISH in combo:
+        am += cap
+    if PINYIN in combo or CITU in combo:
+        am += cap  # joint cap on the pinyin+ciyu pair as a single bucket
+    return am
+
+def check(combo, total):
+    counts = build_schedule(combo, total)
+    total_actual = sum(counts[s] for s in combo)
     errs = []
-    # rule 1: each enabled subject >= 1  (only feasible when total >= len(subjects))
-    if total >= len(subjects):
-        for s in subjects:
-            if counts.get(s, 0) < 1:
-                errs.append(f"{s} < 1 ({counts.get(s,0)})")
-    else:
-        # infeasible to give every subject >=1: at least `total` subjects must get >=1
-        got = sum(1 for s in subjects if counts.get(s, 0) >= 1)
-        if got < total:
-            errs.append(f"only {got} subjects >=1 but total={total}")
-    # rule 2: when total == 10, caps are HARD
-    if total == 10:
-        if counts.get(MATH, 0) > 4:
-            errs.append(f"math > 4 ({counts[MATH]})")
-        if counts.get(ENGLISH, 0) > 4:
-            errs.append(f"english > 4 ({counts[ENGLISH]})")
+    # each >= 1 (feasible since options {5,10,15} and len(combo) <= 4)
+    for s in combo:
+        if counts.get(s, 0) < 1:
+            errs.append(f"{s} < 1 ({counts.get(s,0)})")
+    # caps when N > 5
+    if total > 5:
+        m = len(combo)
+        cap = int(math.ceil(total / m))
+        if MATH in combo and counts.get(MATH, 0) > cap:
+            errs.append(f"math {counts[MATH]} > cap {cap}")
+        if ENGLISH in combo and counts.get(ENGLISH, 0) > cap:
+            errs.append(f"english {counts[ENGLISH]} > cap {cap}")
         pc = counts.get(PINYIN, 0) + counts.get(CITU, 0)
-        if pc > 4:
-            errs.append(f"pinyin+ciyu > 4 ({pc})")
-    # never exceed N
-    if total_actual > total:
-        errs.append(f"sum {total_actual} > {total}")
-    status = "OK " if not errs else "FAIL"
-    print(f"[{status}] {name}: N={total} subjects={subjects} -> {counts} sum={total_actual}")
-    for e in errs:
-        print(f"        ! {e}")
-    return not errs
+        if pc > cap:
+            errs.append(f"pinyin+ciyu {pc} > cap {cap}")
+    # total must equal min(total, achievable_max) under caps
+    expect = min(total, achievable_max(combo, total))
+    if total_actual != expect:
+        errs.append(f"sum {total_actual} != min({total},{achievable_max(combo,total)})={expect}")
+    return errs
 
 ok = True
-# N == 10 (caps HARD)
-ok &= check("all 4 subjects, N=10", [PINYIN, MATH, ENGLISH, CITU], 10)
-ok &= check("math+english+ciyu, N=10", [MATH, ENGLISH, CITU], 10)
-ok &= check("math+english+pinyin, N=10", [MATH, ENGLISH, PINYIN], 10)
-ok &= check("math+english only, N=10 (degenerate: sum<10, caps ok)", [MATH, ENGLISH], 10)
-ok &= check("pinyin+ciyu only, N=10 (degenerate)", [PINYIN, CITU], 10)
-ok &= check("math only, N=10 (degenerate)", [MATH], 10)
-ok &= check("pinyin only, N=10 (degenerate)", [PINYIN], 10)
-# N != 10 (only each >= 1)
-ok &= check("all 4, N=5", [PINYIN, MATH, ENGLISH, CITU], 5)
-ok &= check("all 4, N=3 (< subjects, drop extra)", [PINYIN, MATH, ENGLISH, CITU], 3)
-ok &= check("all 4, N=15", [PINYIN, MATH, ENGLISH, CITU], 15)
-ok &= check("math+english, N=7", [MATH, ENGLISH], 7)
-ok &= check("pinyin+ciyu, N=2 (min)", [PINYIN, CITU], 2)
-ok &= check("all 4, N=1 (< subjects, drop extra)", [PINYIN, MATH, ENGLISH, CITU], 1)
-
-print("\nRESULT:", "ALL PASS" if ok else "SOME FAILED")
+combos = all_combos()
+for combo in combos:
+    label = ",".join(combo)
+    for total in (5, 10, 15):
+        errs = check(combo, total)
+        if errs:
+            ok = False
+            print(f"[FAIL] subjects={{{label}}} N={total}: {errs}")
+            print(f"        counts={build_schedule(combo, total)}")
+print(f"\nScenarios checked: {len(combos)} subject combos x {{5,10,15}} = {len(combos)*3}")
+print("RESULT:", "ALL PASS" if ok else "SOME FAILED")

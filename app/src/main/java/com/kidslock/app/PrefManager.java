@@ -64,9 +64,9 @@ public class PrefManager {
     private static final String DEFAULT_PARENT_PIN = "1234";
     private static final int MAX_PIN_FAILS = 5;
     private static final long PIN_LOCKOUT_MS = 30_000;
-    // 题库默认值（D1 五年级 / D2 仅拼音；英语/语文默认关闭，需手动勾选；新旧用户同一路径，无分支）
-    private static final int DEFAULT_QUESTION_GRADE = 5;              // 0=学前..6=六年级
-    private static final String DEFAULT_QUESTION_SUBJECTS = "pinyin";
+    // 题库默认值（D1 原五年级→三年级；默认科目 = 拼音 + 数学，英语/语文默认关闭需手动勾选；新旧用户同一路径，无分支）
+    private static final int DEFAULT_QUESTION_GRADE = 3;              // 0=学前..6=六年级
+    private static final String DEFAULT_QUESTION_SUBJECTS = "pinyin,math";
     private static final String SUBJECT_SEP = ",";
     private static final Set<String> VALID_SUBJECTS =
             new HashSet<>(Arrays.asList("pinyin", "math", "english", "ciyu"));
@@ -77,6 +77,7 @@ public class PrefManager {
         prefs = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         migrateLegacyTimer();
         migrateQuestionDefaults();
+        migrateLegacyDefaults();
     }
 
     /** 上游旧版用墙钟"到期时间"计时，一次性迁移为"剩余毫秒 + 开机时钟戳"模型 */
@@ -419,6 +420,27 @@ public class PrefManager {
         }
         if (!prefs.contains(KEY_QUESTION_SUBJECTS)) {
             prefs.edit().putString(KEY_QUESTION_SUBJECTS, DEFAULT_QUESTION_SUBJECTS).apply();
+        }
+    }
+
+    /**
+     * 迁移旧版默认值（D6，对应"存量用户迁移"）：
+     * 旧版默认 年级=5、科目="pinyin"、解锁题数=3；新版默认 年级=3、科目="pinyin,math"、解锁题数=5。
+     * 仅当"存储值恰等于旧版默认"（即该项从未被用户改过）时才写入新版默认，使存量用户与全新安装体验一致。
+     * 说明：无法区分"用户主动设成旧默认"与"从未改过"，按需求统一迁移——旧默认 5/3 已不是有效推荐值，迁移无副作用。
+     */
+    private void migrateLegacyDefaults() {
+        if (prefs.contains(KEY_QUESTION_GRADE)
+                && prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE) == 5) {
+            prefs.edit().putInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE).apply();
+        }
+        if (prefs.contains(KEY_QUESTION_SUBJECTS)
+                && "pinyin".equals(prefs.getString(KEY_QUESTION_SUBJECTS, ""))) {
+            prefs.edit().putString(KEY_QUESTION_SUBJECTS, DEFAULT_QUESTION_SUBJECTS).apply();
+        }
+        if (prefs.contains(KEY_UNLOCK_COUNT)
+                && prefs.getInt(KEY_UNLOCK_COUNT, DEFAULT_UNLOCK_COUNT) == 3) {
+            prefs.edit().putInt(KEY_UNLOCK_COUNT, DEFAULT_UNLOCK_COUNT).apply();
         }
     }
 

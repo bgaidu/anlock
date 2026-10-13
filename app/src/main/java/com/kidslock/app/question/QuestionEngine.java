@@ -22,15 +22,14 @@ import java.util.Set;
  * 按「每科目出题数量规则」预算出长度为 N 的科目顺序表（schedule）→ 每次 {@link #nextQuestion()}
  * 依次从顺序表取科目出题、跨科目统一防重复（容量 10、重抽上限 20）。
  *
- * <p>每科目出题数量规则（出题总数量 N = 解锁题数）：
+ * <p>每科目出题数量规则（出题总数量 N = 解锁题数，M = 启用科目数）：
  * ① 任一启用科目数量 ≥ 1（保证每种都练到）；
- * ② 当 N == 10 时额外约束：数学 ≤ 4、英语 ≤ 4、拼音+语文合计 ≤ 4；
- * ③ N != 10 时仅满足 ①（不再设单科上限）。
- * 约束在启用科目数 ≤ N 且科目组合的单科上限之和 ≥ N 时恒成立
- * （如全部 4 科：数学 4 + 英语 4 + 拼音语文 4 = 12 ≥ 10）。
- * 若启用科目过少（如仅数学+英语且 N=10，受 ② 上限合计仅 8），则严格遵守单科上限、
- * 放弃"总数恰为 N"——此时顺序表长度 < N，但引擎循环重洗顺序表，解锁所需的 N 次作答仍可达成
- * （题目会重复，绝不无题可出）。此取舍令用户显式要求的"数学/英语不能大于4"硬约束永远不被打破。</p>
+ * ② 当 N &gt; 5 时额外硬约束（上限 = ⌈N/M⌉，向上取整）：数学 ≤ ⌈N/M⌉、英语 ≤ ⌈N/M⌉、
+ *    拼音 + 语文合计 ≤ ⌈N/M⌉；此三档上限**永不突破**；
+ * ③ N == 5 时仅满足 ①（不设单科上限）。
+ * 当启用科目数较少导致上限之和 &lt; N（如 4 科且 N=10 → 上限合计仅 9）时，严格遵守单科上限、
+ * 放弃"总数恰为 N"——此时顺序表长度 &lt; N，但引擎循环重洗顺序表，解锁所需的 N 次作答仍可达成
+ * （题目会重复，绝不无题可出）。此取舍令用户显式要求的单科上限硬约束永远不被打破。</p>
  *
  * <p>契约（设计 §9.2 / R03 L3）：{@link #nextQuestion()} 永不返回 null、永不抛异常。
  * 最后一环是 {@link PinyinProvider} 经 {@link BuiltinPinyinBank}（编译进 dex）兜底，
@@ -158,7 +157,8 @@ public final class QuestionEngine {
 
     /**
      * 预算长度为 total 的科目顺序表，满足出题数量规则：
-     * 每科目 ≥ 1；当 total == 10 时数学 ≤ 4、英语 ≤ 4、拼音+语文 ≤ 4。
+     * 每科目 ≥ 1；当 total &gt; 5 时单科上限 = ⌈total / M⌉（M = 启用科目数），
+     * 数学 ≤ 上限、英语 ≤ 上限、拼音+语文合计 ≤ 上限；total == 5 时不设单科上限。
      * 返回已洗牌的科目标签列表。
      */
     @NonNull
@@ -176,7 +176,9 @@ public final class QuestionEngine {
             remaining = 0;
         }
 
-        boolean applyCaps = (total == 10);
+        int m = list.size();                                  // 启用科目数 M
+        boolean applyCaps = (total > 5);
+        int cap = applyCaps ? (int) Math.ceil((double) total / m) : Integer.MAX_VALUE; // ⌈N/M⌉
         boolean pinOn = subjects.contains(Subject.PINYIN);
         boolean ciyuOn = subjects.contains(Subject.CITU);
 
@@ -187,7 +189,7 @@ public final class QuestionEngine {
             boolean added = false;
             for (String s : list) {
                 if (remaining <= 0) break;
-                if (!applyCaps || canAdd(s, counts, pinOn, ciyuOn)) {
+                if (!applyCaps || canAdd(s, counts, cap, pinOn, ciyuOn)) {
                     counts.put(s, counts.get(s) + 1);
                     remaining--;
                     added = true;
@@ -195,9 +197,9 @@ public final class QuestionEngine {
             }
             if (!added) break; // 单科上限已用尽
         }
-        // 约束用尽后若仍 remaining>0（如仅启用数学+英语且 total=10，受 ② 上限合计仅 8），
-        // 不再强制补足到 total——严格遵守单科上限优先于"总数恰为 N"。
-        // 引擎会循环重洗 schedule，故解锁所需的 N 次作答仍可达成（题目会重复，绝不无题可出）。
+        // 约束用尽后若仍 remaining>0（如 4 科且 total=10，上限合计仅 9），不再强制补足到 total——
+        // 严格遵守单科上限优先于"总数恰为 N"。引擎会循环重洗 schedule，故解锁所需的 N 次作答仍可达成
+        // （题目会重复，绝不无题可出）。
 
         List<String> schedule = new ArrayList<>();
         for (String s : list) {
@@ -208,18 +210,18 @@ public final class QuestionEngine {
         return schedule;
     }
 
-    /** 单科上限判断（仅 total == 10 时生效） */
+    /** 单科上限判断：math/english 各自 < cap；拼音+语文在对方启用时二者合计 < cap，否则各自 < cap */
     private static boolean canAdd(@NonNull String s, @NonNull Map<String, Integer> counts,
-                                  boolean pinOn, boolean ciyuOn) {
-        if (Subject.MATH.equals(s)) return counts.get(s) < 4;
-        if (Subject.ENGLISH.equals(s)) return counts.get(s) < 4;
+                                  int cap, boolean pinOn, boolean ciyuOn) {
+        if (Subject.MATH.equals(s)) return counts.get(s) < cap;
+        if (Subject.ENGLISH.equals(s)) return counts.get(s) < cap;
         if (Subject.PINYIN.equals(s)) {
-            if (ciyuOn) return (counts.get(Subject.PINYIN) + counts.get(Subject.CITU)) < 4;
-            return counts.get(s) < 4;
+            if (ciyuOn) return (counts.get(Subject.PINYIN) + counts.get(Subject.CITU)) < cap;
+            return counts.get(s) < cap;
         }
         if (Subject.CITU.equals(s)) {
-            if (pinOn) return (counts.get(Subject.PINYIN) + counts.get(Subject.CITU)) < 4;
-            return counts.get(s) < 4;
+            if (pinOn) return (counts.get(Subject.PINYIN) + counts.get(Subject.CITU)) < cap;
+            return counts.get(s) < cap;
         }
         return true;
     }
