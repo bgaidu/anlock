@@ -361,7 +361,7 @@ public class PrefManager {
 
     public int getGrade() {
         int g = prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE);
-        return (g >= 0 && g <= 6) ? g : DEFAULT_QUESTION_GRADE;   // 越界/缺失→5，不抛异常
+        return (g >= 0 && g <= 6) ? g : DEFAULT_QUESTION_GRADE;   // 越界/缺失→3（三年级），不抛异常
     }
 
     public boolean setGrade(int grade) {

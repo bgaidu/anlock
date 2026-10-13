@@ -12,8 +12,8 @@ public final class Grade {
     public static final int MIN = 0;
     /** 最大年级编码：六年级 */
     public static final int MAX = 6;
-    /** 默认年级（D1：五年级） */
-    public static final int DEFAULT = 5;
+    /** 默认年级（D6 修订：原五年级，现三年级；注意实际生效的默认年级由 PrefManager.DEFAULT_QUESTION_GRADE 驱动，本常量仅作边界/展示参考，当前未被直接引用） */
+    public static final int DEFAULT = 3;
 
     /** 短标：学前/一/二/三/四/五/六（设置页按钮用极简短标） */
     public static final String[] SHORT = {"学前", "一", "二", "三", "四", "五", "六"};

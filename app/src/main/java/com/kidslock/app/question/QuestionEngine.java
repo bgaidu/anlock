@@ -11,6 +11,7 @@ import com.kidslock.app.PrefManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -67,8 +68,10 @@ public final class QuestionEngine {
     }
 
     /**
-     * 工厂：读 PrefManager 的年级、科目与解锁题数，构建已启用 provider 列表与科目顺序表。
-     * provider 列表为空（脏数据/资产缺失）→ 强制回退 [PinyinProvider] 并 Log.e（R03 L3）。
+     * 工厂：读 PrefManager 的年级、科目与解锁题数，构建已启用且可用（isAvailable）的 provider 列表与科目顺序表。
+     * 只保留 isAvailable(grade) 为 true 的 provider（R03 L3：资产缺失/损坏的科目直接跳过，避免 next() 恒 null，
+     * 从而守住"永不 null"契约）；过滤后若仍无任何可用科目（脏数据/资产缺失），强制回退 [PinyinProvider]
+     * （内置 144 条永远可用）并 Log.e。
      */
     @NonNull
     public static QuestionEngine create(@NonNull Context ctx, @NonNull PrefManager pref) {
@@ -78,6 +81,7 @@ public final class QuestionEngine {
 
         List<QuestionProvider> list = new ArrayList<>();
         Map<String, QuestionProvider> bySubject = new HashMap<>();
+        Set<String> effective = new LinkedHashSet<>(); // 实际可用（isAvailable）的科目，作为顺序表输入
         for (String s : Subject.ORDER) {
             if (!subjects.contains(s)) continue;
             QuestionProvider p;
@@ -92,8 +96,13 @@ public final class QuestionEngine {
             } else {
                 continue;
             }
+            if (!p.isAvailable(grade)) {
+                Log.w(TAG, "QuestionEngine: 科目不可用，跳过 " + s + "（grade=" + grade + "）");
+                continue;
+            }
             list.add(p);
             bySubject.put(s, p);
+            effective.add(s);
         }
 
         if (list.isEmpty()) {
@@ -101,10 +110,10 @@ public final class QuestionEngine {
             PinyinProvider p = new PinyinProvider(ctx);
             list.add(p);
             bySubject.put(Subject.PINYIN, p);
-            subjects = Collections.singleton(Subject.PINYIN);
+            effective.add(Subject.PINYIN);
         }
 
-        List<String> schedule = buildSchedule(subjects, total, new Random());
+        List<String> schedule = buildSchedule(effective, total, new Random());
         return new QuestionEngine(ctx, list, bySubject, schedule, grade);
     }
 
