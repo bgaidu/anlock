@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 锁屏界面：展示五年级水平汉字，需要连续答对指定题数才能解锁。
+ * 锁屏界面：按家长设置的年级与科目出题（默认三年级、拼音 + 数学），需要连续答对指定题数才能解锁。
  * - 按 HOME 键无法绕过（通过 HOME launcher alias 拦截）
  * - 按 BACK 键无效
  * - 答错重置计数
