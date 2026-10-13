@@ -62,6 +62,8 @@ public final class QuestionEngine {
                 list.add(new MathProvider(ctx));
             } else if (Subject.ENGLISH.equals(s)) {
                 list.add(new EnglishProvider(ctx));
+            } else if (Subject.CITU.equals(s)) {
+                list.add(new CituProvider(ctx));
             }
         }
 

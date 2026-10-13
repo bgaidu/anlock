@@ -64,13 +64,13 @@ public class PrefManager {
     private static final String DEFAULT_PARENT_PIN = "1234";
     private static final int MAX_PIN_FAILS = 5;
     private static final long PIN_LOCKOUT_MS = 30_000;
-    // 题库默认值（D1 五年级 / D2 仅拼音；新旧用户同一路径，无分支）
+    // 题库默认值（D1 五年级 / D2 仅拼音；英语/语文默认关闭，需手动勾选；新旧用户同一路径，无分支）
     private static final int DEFAULT_QUESTION_GRADE = 5;              // 0=学前..6=六年级
     private static final String DEFAULT_QUESTION_SUBJECTS = "pinyin";
     private static final String SUBJECT_SEP = ",";
     private static final Set<String> VALID_SUBJECTS =
-            new HashSet<>(Arrays.asList("pinyin", "math", "english"));
-    private static final String[] SUBJECT_ORDER = {"pinyin", "math", "english"}; // 固定展示顺序
+            new HashSet<>(Arrays.asList("pinyin", "math", "english", "ciyu"));
+    private static final String[] SUBJECT_ORDER = {"pinyin", "math", "english", "ciyu"}; // 固定展示顺序（含语文，默认关闭）
 
     public PrefManager(Context context) {
         appContext = context.getApplicationContext();

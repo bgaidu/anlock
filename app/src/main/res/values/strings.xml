@@ -30,6 +30,7 @@
     <string name="btn_subject_pinyin">拼音</string>
     <string name="btn_subject_math">数学</string>
     <string name="btn_subject_english">英语</string>
+    <string name="btn_subject_citu">语文</string>
     <string name="toast_grade_set">年级设为 %s</string>
     <string name="toast_subject_on">已开启 %s</string>
     <string name="toast_subject_off">已关闭 %s</string>

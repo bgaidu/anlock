@@ -109,6 +109,19 @@ task verifyQuestionBanks {
             if (eDistinctV.size() < 4) throw new GradleException("english_${g}.json 去重释义 < 4（实际 ${eDistinctV.size()}）")
             println "verifyQuestionBanks: english_${g}.json OK（${eEntries.size()} 条，${eDistinctV.size()} 种释义）"
         }
+
+        // 语文词表：ciyu_0..6.json（词语/成语，D4 落地）。每级条目 >=60、k/v 非空、去重拼音 >=4
+        for (int g = 0; g <= 6; g++) {
+            def cFile = file("src/main/assets/banks/ciyu_${g}.json")
+            if (!cFile.exists()) throw new GradleException("缺失语文题库资产: ${cFile}")
+            def cObj = slurper.parse(cFile)
+            def cEntries = cObj.entries
+            if (cEntries == null || cEntries.isEmpty()) throw new GradleException("ciyu_${g}.json 条目为空")
+            if (cEntries.size() < 60) throw new GradleException("ciyu_${g}.json 条目数应 >=60，实际 ${cEntries.size()}")
+            def cDistinctV = new HashSet(cEntries.collect { it.v })
+            if (cDistinctV.size() < 4) throw new GradleException("ciyu_${g}.json 去重拼音 < 4（实际 ${cDistinctV.size()}）")
+            println "verifyQuestionBanks: ciyu_${g}.json OK（${cEntries.size()} 条，${cDistinctV.size()} 种拼音）"
+        }
     }
 }
 preBuild.dependsOn verifyQuestionBanks
