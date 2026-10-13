@@ -300,8 +300,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 解锁题数预设
-        int[] countButtons = {R.id.btnUnlock3, R.id.btnUnlock5, R.id.btnUnlock10};
-        int[] countValues = {3, 5, 10};
+        int[] countButtons = {R.id.btnUnlock5, R.id.btnUnlock10, R.id.btnUnlock15};
+        int[] countValues = {5, 10, 15};
         for (int i = 0; i < countButtons.length; i++) {
             final int count = countValues[i];
             findViewById(countButtons[i]).setOnClickListener(v -> {

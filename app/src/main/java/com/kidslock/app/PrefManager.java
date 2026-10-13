@@ -60,7 +60,7 @@ public class PrefManager {
     // Defaults
     private static final boolean DEFAULT_AUTO_START = true;
     private static final int DEFAULT_WATCH_LIMIT_MIN = 30;
-    private static final int DEFAULT_UNLOCK_COUNT = 3;
+    private static final int DEFAULT_UNLOCK_COUNT = 5;
     private static final String DEFAULT_PARENT_PIN = "1234";
     private static final int MAX_PIN_FAILS = 5;
     private static final long PIN_LOCKOUT_MS = 30_000;
