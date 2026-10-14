@@ -13,6 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +55,9 @@ public class PrefManager {
     private static final String KEY_PIN_SALT = "pin_salt";
     private static final String KEY_PIN_FAIL_COUNT = "pin_fail_count";
     private static final String KEY_PIN_LOCK_UNTIL = "pin_lock_until";
+    private static final String KEY_PIN_MODIFIED = "pin_modified";
+    private static final int PBKDF2_ITERATIONS = 10000;
+    private static final int PIN_HASH_LENGTH = 256;
 
     // 多科目分级题库：年级 / 科目 key
     private static final String KEY_QUESTION_GRADE = "question_grade";
@@ -244,22 +250,20 @@ public class PrefManager {
         return total;
     }
 
-    // --- Parent PIN（随机盐 + SHA-256，不存明文） ---
+    // --- Parent PIN（随机盐 + PBKDF2WithHmacSHA256，不存明文） ---
 
     /**
-     * 校验 PIN，兼容三种存储格式：
+     * 校验 PIN，兼容四种存储格式：
      * 空值 → 默认 1234；4 位数字 → 旧版明文（校验成功时升级）；
-     * 64 位十六进制 → 已迁移的哈希；其他 → 视为损坏（例如异常时误写入的空串）。
+     * 64 位十六进制 → 旧版 SHA-256 哈希（校验成功时升级为 PBKDF2）；
+     * 96 位十六进制 → PBKDF2 哈希（salt + hash 拼接）；其他 → 视为损坏。
      */
     public boolean verifyPin(String pin) {
         if (pin == null || pin.isEmpty()) return false;
         String stored = prefs.getString(KEY_PARENT_PIN, null);
         if (stored == null) return pin.equals(DEFAULT_PARENT_PIN);
         if (stored.length() == 4 && stored.matches("\\d{4}")) {
-            // 旧版明文：校验成功时升级为哈希，避免下次再走明文分支
             if (stored.equals(pin)) {
-                // 校验成功即升级存储格式。升级失败不视为验证失败，
-                // 仅记录失败计数（下次仍可用明文校验），避免 SHA 异常被误计为密码错误。
                 try {
                     setParentPin(pin);
                     resetPinFailures();
@@ -271,27 +275,53 @@ public class PrefManager {
             return false;
         }
         if (stored.length() == 64) {
-            return stored.equals(sha256Hex(getOrCreateSalt() + "|" + pin));
+            if (stored.equals(sha256Hex(getOrCreateSalt() + "|" + pin))) {
+                try {
+                    setParentPin(pin);
+                    resetPinFailures();
+                } catch (RuntimeException e) {
+                    recordPinFailure();
+                }
+                return true;
+            }
+            return false;
         }
-        // 存储已损坏：拒绝匹配任何输入。
-        // 家长可在 MainActivity 通过"重新设置PIN"覆盖此值来恢复，避免被永久锁死。
+        if (stored.length() == 96) {
+            String saltHex = stored.substring(0, 32);
+            String hashHex = stored.substring(32);
+            return hashHex.equals(pbkdf2Hex(pin, hexToBytes(saltHex)));
+        }
         return false;
     }
 
     /**
-     * 写入 PIN 的哈希。SHA-256 失败时抛出而非返回空串，
+     * 写入 PIN 的 PBKDF2 哈希。失败时抛出而非返回空串，
      * 避免把错误值写成"看起来已设置"的状态导致 PIN 永久失效。
      */
     public boolean setParentPin(String pin) {
         if (pin == null || pin.isEmpty()) return false;
-        String hash = sha256Hex(getOrCreateSalt() + "|" + pin);
-        if (hash.length() != 64) {
-            throw new IllegalStateException("sha256Hex 返回了非 64 位摘要");
+        byte[] salt = new byte[16];
+        new SecureRandom().nextBytes(salt);
+        String saltHex = bytesToHex(salt);
+        String hashHex = pbkdf2Hex(pin, salt);
+        if (hashHex.length() != 64) {
+            throw new IllegalStateException("pbkdf2Hex 返回了非 64 位摘要");
         }
         prefs.edit()
-                .putString(KEY_PARENT_PIN, hash)
+                .putString(KEY_PARENT_PIN, saltHex + hashHex)
+                .putBoolean(KEY_PIN_MODIFIED, true)
                 .apply();
         return true;
+    }
+
+    public boolean isPinModified() {
+        return prefs.getBoolean(KEY_PIN_MODIFIED, false);
+    }
+
+    public boolean shouldForcePinChange() {
+        if (isPinModified()) return false;
+        String stored = prefs.getString(KEY_PARENT_PIN, null);
+        return stored == null || (stored.length() == 4 && stored.matches("\\d{4}"));
     }
 
     /**
@@ -325,10 +355,38 @@ public class PrefManager {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 是 Android 标准算法，不可用时抛出而非返回空串——
-            // 空串会被当成"已设置的 PIN"写入，导致永久无法解锁。
             throw new IllegalStateException("SHA-256 not available", e);
         }
+    }
+
+    private static String pbkdf2Hex(String password, byte[] salt) {
+        try {
+            SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+            KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, PIN_HASH_LENGTH);
+            byte[] hash = skf.generateSecret(spec).getEncoded();
+            return bytesToHex(hash);
+        } catch (Exception e) {
+            throw new IllegalStateException("PBKDF2 not available", e);
+        }
+    }
+
+    private static byte[] hexToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                    + Character.digit(hex.charAt(i + 1), 16));
+        }
+        return data;
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
     }
 
     // --- PIN 防暴力尝试 ---

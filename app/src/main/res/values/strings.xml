@@ -48,6 +48,10 @@
     <!-- 答题正确率（R25） -->
     <string name="accuracy_text">累计正确率 %1$d%%</string>
 
+    <!-- PIN 状态（T5） -->
+    <string name="pin_status_default">PIN码：默认（建议修改）</string>
+    <string name="pin_status_modified">PIN码：已修改</string>
+
     <!-- 自定义题库（家长导入，R26） -->
     <string name="section_custom_bank">自定义题库（家长）</string>
     <string name="custom_bank_hint">导入 JSON 题库文件，覆盖对应年级与科目的题目（支持拼音/英语/语文，每科至少 4 条）。</string>

@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvQuestionGrade;
     private TextView tvQuestionSubjects;
     private TextView tvAccuracy;
+    private TextView tvPinStatus;
     private Button[] btnGrades = new Button[7];
     private Button btnSubjectPinyin;
     private Button btnSubjectMath;
@@ -187,6 +188,7 @@ public class MainActivity extends AppCompatActivity {
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade);
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects);
         tvAccuracy = findViewById(R.id.tvAccuracy);
+        tvPinStatus = findViewById(R.id.tvPinStatus);
         btnGrades[0] = findViewById(R.id.btnGrade0);
         btnGrades[1] = findViewById(R.id.btnGrade1);
         btnGrades[2] = findViewById(R.id.btnGrade2);
@@ -285,6 +287,9 @@ public class MainActivity extends AppCompatActivity {
             pref.resetPinFailures();
             gateVerified = true;
             applyGate();
+            if (pref.shouldForcePinChange()) {
+                promptPinChange(true);
+            }
         } else {
             pref.recordPinFailure();
             toast("PIN码错误");
@@ -404,6 +409,40 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void promptPinChange(boolean force) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(force ? "请修改默认PIN码" : "设置家长PIN码（4位数字）");
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setRawInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
+        builder.setView(input);
+
+        builder.setPositiveButton("确定", (dialog, which) -> {
+            String pin = input.getText().toString().trim();
+            if (!pin.matches("\\d{4}")) {
+                toast("PIN码必须是4位数字");
+                return;
+            }
+            try {
+                if (pref.setParentPin(pin)) {
+                    pref.resetPinFailures();
+                    toast("PIN码已设置");
+                    updateStatus();
+                } else {
+                    toast("PIN码设置失败，请重试");
+                }
+            } catch (RuntimeException e) {
+                toast("PIN码设置失败：" + e.getMessage());
+            }
+        });
+        if (!force) {
+            builder.setNegativeButton("取消", null);
+        }
+        builder.show();
+    }
+
     private void showPinDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("设置家长PIN码（4位数字）");
@@ -504,6 +543,16 @@ public class MainActivity extends AppCompatActivity {
             tvAccuracy.setText(getString(R.string.accuracy_text, acc));
             tvAccuracy.setVisibility(View.VISIBLE);
         }
+
+        // PIN 状态
+        if (pref.isPinModified()) {
+            tvPinStatus.setText(getString(R.string.pin_status_modified));
+            tvPinStatus.setTextColor(ContextCompat.getColor(this, R.color.correct_green));
+        } else {
+            tvPinStatus.setText(getString(R.string.pin_status_default));
+            tvPinStatus.setTextColor(ContextCompat.getColor(this, R.color.wrong_red));
+        }
+        tvPinStatus.setVisibility(View.VISIBLE);
     }
 
     private void toast(String msg) {

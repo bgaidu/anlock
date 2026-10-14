@@ -6,14 +6,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -44,11 +36,19 @@ public final class BankRepository {
 
     @NonNull
     private final Context appContext;
+    @NonNull
+    private final List<BankSource> sources;
     /** (subject_grade) -> LoadResult，含失败结果 */
     private final Map<String, LoadResult> cache = new ConcurrentHashMap<>();
 
     private BankRepository(@NonNull Context appContext) {
         this.appContext = appContext.getApplicationContext();
+        List<BankSource> list = new ArrayList<>();
+        list.add(new CustomBankSource(appContext));
+        list.add(new AssetBankSource(appContext));
+        list.add(new BuiltinBankSource());
+        list.sort((a, b) -> Integer.compare(a.priority(), b.priority()));
+        this.sources = list;
     }
 
     /** 进程内单例 */
@@ -84,84 +84,15 @@ public final class BankRepository {
 
     @NonNull
     private LoadResult loadInternal(@NonNull String subject, int grade) {
-        // L0：家长自定义题库优先（R26）。命中且可用即返回；失败透明回退 L1–L3，绝不破坏「永不 null」
-        if (CustomBankStore.hasCustom(appContext, subject, grade)) {
-            LoadResult custom = CustomBankStore.loadCustom(appContext, subject, grade);
-            if (custom != null && custom.usable()) {
-                Log.i(TAG, "题库L0自定义命中: subject=" + subject
-                        + " 年级=" + grade);
-                return custom;
+        for (BankSource source : sources) {
+            LoadResult result = source.load(subject, grade);
+            if (result != null && result.usable()) {
+                return result;
             }
         }
 
-        // L1：同年级
-        LoadResult l1 = tryLoadGrade(subject, grade);
-        if (l1 != null && l1.usable()) {
-            return l1; // 正常路径，不打日志
-        }
-
-        // L2：相邻年级按距离顺序（g-1, g+1, g-2, g+2 …），首个可用者胜出
-        for (int cg : adjacentGrades(grade)) {
-            if (cg == grade) continue;
-            LoadResult r = tryLoadGrade(subject, cg);
-            if (r != null && r.usable()) {
-                Log.w(TAG, "题库L2回退: subject=" + subject
-                        + " 原年级=" + grade + " 改用年级=" + cg);
-                return new LoadResult(r.entries, 2, new int[]{cg});
-            }
-        }
-
-        // L3：仅拼音回退内置 144 条（最后防线）
-        if (Subject.PINYIN.equals(subject)) {
-            List<BankEntry> builtin = BuiltinPinyinBank.entries();
-            Log.e(TAG, "题库L3强制回退: subject=pinyin 原年级=" + grade
-                    + " 使用内置" + builtin.size() + "条");
-            return new LoadResult(builtin, 3, new int[]{grade});
-        }
-
-        // 非拼音且无可用资产：不可用
         Log.w(TAG, "题库不可用: subject=" + subject + " 年级=" + grade);
         return new LoadResult(Collections.emptyList(), 0, new int[]{grade});
-    }
-
-    @Nullable
-    private LoadResult tryLoadGrade(@NonNull String subject, int grade) {
-        String path = assetPath(subject, grade);
-        try (InputStream is = appContext.getAssets().open(path)) {
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(is, StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) sb.append(line);
-            JSONObject obj = new JSONObject(sb.toString());
-            JSONArray arr = obj.optJSONArray("entries");
-            if (arr == null) return new LoadResult(Collections.emptyList(), 1, new int[]{grade});
-            List<BankEntry> list = new ArrayList<>();
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject e = arr.getJSONObject(i);
-                String k = e.optString("k", "");
-                String v = e.optString("v", "");
-                if (k.isEmpty() || v.isEmpty()) continue;
-                list.add(new BankEntry(k, v));
-            }
-            return new LoadResult(list, 1, new int[]{grade});
-        } catch (IOException | org.json.JSONException | RuntimeException e) {
-            // 文件缺失 / JSON 非法：返回 null，交由上级兜底
-            return null;
-        }
-    }
-
-    /** 按距离顺序生成相邻年级候选（g-1, g+1, g-2, g+2 …），过滤越界，去重 */
-    @NonNull
-    private static List<Integer> adjacentGrades(int grade) {
-        List<Integer> out = new ArrayList<>();
-        for (int d = 1; d <= Grade.MAX; d++) {
-            int lo = grade - d;
-            int hi = grade + d;
-            if (lo >= Grade.MIN && lo <= Grade.MAX) out.add(lo);
-            if (hi >= Grade.MIN && hi <= Grade.MAX) out.add(hi);
-        }
-        return out;
     }
 
     /** assets 路径拼接唯一入口：banks/<subject>_<grade>.json */
