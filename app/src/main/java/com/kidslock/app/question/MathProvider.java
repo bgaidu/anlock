@@ -21,11 +21,15 @@ import java.util.Set;
  * 数学所有年级（0..6）均可用（启用即出）；题目由 {@link MathSpec} 代码生成，永不依赖资产文件。
  */
 public final class MathProvider implements QuestionProvider {
-    @NonNull
+    /**
+     * 数学出题路径不触碰 context（与拼音/英语的资产读取不同），故允许传 null
+     * 以便 JVM 单元测试直接构造（R23）。字段保留仅作与兄弟 provider 接口一致。
+     */
+    @Nullable
     private final Context context;
 
-    public MathProvider(@NonNull Context context) {
-        this.context = context.getApplicationContext();
+    public MathProvider(@Nullable Context context) {
+        this.context = context != null ? context.getApplicationContext() : null;
     }
 
     @NonNull

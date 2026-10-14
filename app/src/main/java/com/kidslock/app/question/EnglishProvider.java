@@ -5,12 +5,8 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * 英语题型（D3 落地）：正向（看英文选中文）+ 反向（看中文选英文）混合出题，按题随机选方向。
@@ -52,17 +48,17 @@ public final class EnglishProvider extends BankProvider {
             stem = chosen.k;
             answer = chosen.v;
             hint = HINT_FORWARD;
-            options = sampleOptions(pool, chosen, /*answerKey=*/false, random);
+            options = DistractorSampler.sample(pool, chosen, /*answerKey=*/false, random);
         } else {
             // 反向：看中文选英文（题干=释义，选项=单词）
             stem = chosen.v;
             answer = chosen.k;
             hint = HINT_REVERSE;
-            options = sampleOptions(pool, chosen, /*answerKey=*/true, random);
+            options = DistractorSampler.sample(pool, chosen, /*answerKey=*/true, random);
         }
-        if (options == null) return null;
+        if (options == null) return null; // 凑不齐 3 个干扰项 → 失败
 
-        Collections.shuffle(options, random); // 正确项随机落位
+        // options 已由 DistractorSampler 洗牌（含正确项），直接定位正确项
         int correctIndex = options.indexOf(answer);
         if (correctIndex < 0) return null;    // 防御：选项集校验失守
 
@@ -70,37 +66,5 @@ public final class EnglishProvider extends BankProvider {
         String dirTag = forward ? "fwd" : "rev";
         String id = subject + ":" + dirTag + ":" + chosen.k;
         return new Question(stem, hint, options, correctIndex, subject, id, stemStyle);
-    }
-
-    /**
-     * 抽 3 个互不相同的干扰项 + 正确项，共 4 选项。
-     * answerKey=false → 以释义(v)为正确项，候选取自 v；
-     * answerKey=true  → 以单词(k)为正确项，候选取自 k。
-     * 候选去重后 < 3 → 返回 null（绝不占位）。
-     */
-    @Nullable
-    private List<String> sampleOptions(@NonNull List<BankEntry> pool,
-                                       @NonNull BankEntry chosen, boolean answerKey,
-                                       @NonNull Random random) {
-        String chosenVal = answerKey ? chosen.k : chosen.v;
-        Set<String> candidates = new HashSet<>();
-        for (BankEntry e : pool) {
-            String val = answerKey ? e.k : e.v;
-            if (!val.equals(chosenVal)) candidates.add(val);
-        }
-        if (candidates.size() < 3) return null;
-
-        List<String> cands = new ArrayList<>(candidates);
-        Collections.shuffle(cands, random);
-        List<String> options = new ArrayList<>(4);
-        options.add(chosenVal);
-        options.addAll(cands.subList(0, 3));
-
-        // 4 选项文本互异校验（设计 §9.5）
-        Set<String> seen = new HashSet<>();
-        for (String o : options) {
-            if (!seen.add(o)) return null;
-        }
-        return options;
     }
 }

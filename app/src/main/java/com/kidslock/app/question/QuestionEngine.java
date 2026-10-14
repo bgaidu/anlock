@@ -151,6 +151,29 @@ public final class QuestionEngine {
         return null;
     }
 
+    /**
+     * 预览专用（R24）：直接由 provider 出一道题，<b>绝不 offer 到 recent 队列</b>，
+     * 因此不会污染锁屏真实防重复队列（预览走独立的引擎实例，双重隔离）。
+     * 契约：永不返回 null（极端兜底走正常流程保证非 null）。
+     */
+    @NonNull
+    public Question nextPreviewQuestion() {
+        // 预览：只从 provider 出题，绝不 offer 到 recent
+        for (int i = 0; i < providers.size(); i++) {
+            QuestionProvider p = providerForScheduledSubject();
+            if (p == null) p = providers.get(random.nextInt(providers.size()));
+            Question q = p.next(grade, random);
+            if (q != null) return q;
+        }
+        // 兜底：任意可用 provider 再试一轮（仍不污染 recent）
+        for (QuestionProvider p : providers) {
+            Question q = p.next(grade, random);
+            if (q != null) return q;
+        }
+        // 极端兜底：走正常引擎流程（保证永不 null；本引擎实例独立，不影响锁屏真实队列）
+        return nextQuestion();
+    }
+
     /** 取科目顺序表的下一个科目对应的 provider，并推进游标（越界则重洗继续） */
     @Nullable
     private QuestionProvider providerForScheduledSubject() {
@@ -171,8 +194,8 @@ public final class QuestionEngine {
      * 返回已洗牌的科目标签列表。
      */
     @NonNull
-    private static List<String> buildSchedule(@NonNull Set<String> subjects, int total,
-                                              @NonNull Random rnd) {
+    static List<String> buildSchedule(@NonNull Set<String> subjects, int total,
+                                     @NonNull Random rnd) {
         if (total < 1) total = 1;
         List<String> list = new ArrayList<>(subjects); // 沿用 Subject.ORDER 顺序，结果确定
         Map<String, Integer> counts = new HashMap<>();

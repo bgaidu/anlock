@@ -71,31 +71,47 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.google.android.material:material:1.11.0'
+
+    // R23 干扰项质量单测（test-only，不进 APK）
+    // 离线环境无法从 Maven 拉取 junit，临时以 gradle 发行包内自带的同版本 jar 直接引用；
+    // 联网构建时可改回：testImplementation 'junit:junit:4.13.2'
+    testImplementation files('libs-test/junit-4.13.2.jar', 'libs-test/hamcrest-core-1.3.jar')
 }
 
 // 构建期校验：题库资产（PRD R12）。零新增依赖，使用 Gradle 自带 Groovy JsonSlurper。
 task verifyQuestionBanks {
     doLast {
         def slurper = new groovy.json.JsonSlurper()
-        def bankFile = file("src/main/assets/banks/pinyin_5.json")
-        if (!bankFile.exists()) throw new GradleException("缺失题库资产: ${bankFile}")
-        def obj = slurper.parse(bankFile)
-        def entries = obj.entries
-        if (entries == null || entries.isEmpty()) throw new GradleException("pinyin_5.json 条目为空")
-        if (entries.size() != 144) throw new GradleException("pinyin_5.json 条目数应为 144，实际 ${entries.size()}")
-        def distinctV = new HashSet(entries.collect { it.v })
-        if (distinctV.size() < 4) throw new GradleException("pinyin_5.json 去重拼音数 < 4（实际 ${distinctV.size()}）")
+        // 拼音字表：pinyin_0..6.json（PRD R12 / 后续迭代 R22 分级字表）。
+        // 阈值（已拍板 Q8）：学前(0)>=60、一~六(1..6)>=100、distinct(v)>=4、k/v 非空。
+        // pinyin_5 还须与编译进 dex 的内置兜底字表 BuiltinPinyinBank 逐条一致（零回归底线）。
+        def PINYIN_MIN = [0: 60, 1: 100, 2: 100, 3: 100, 4: 100, 5: 144, 6: 100]
+        for (int g = 0; g <= 6; g++) {
+            def pFile = file("src/main/assets/banks/pinyin_${g}.json")
+            if (!pFile.exists()) throw new GradleException("缺失拼音题库资产: ${pFile}")
+            def pObj = slurper.parse(pFile)
+            def pEntries = pObj.entries
+            if (pEntries == null || pEntries.isEmpty()) throw new GradleException("pinyin_${g}.json 条目为空")
+            def minN = PINYIN_MIN[g]
+            if (pEntries.size() < minN) throw new GradleException("pinyin_${g}.json 条目数应 >=${minN}，实际 ${pEntries.size()}")
+            def pDistinctV = new HashSet(pEntries.collect { it.v })
+            if (pDistinctV.size() < 4) throw new GradleException("pinyin_${g}.json 去重拼音数 < 4（实际 ${pDistinctV.size()}）")
+            for (def e : pEntries) {
+                if (!e.k || !e.v) throw new GradleException("pinyin_${g}.json 存在空字段 (k=${e.k}, v=${e.v})")
+            }
+            println "verifyQuestionBanks: pinyin_${g}.json OK（${pEntries.size()} 条，${pDistinctV.size()} 种拼音）"
+        }
 
-        // 与内置兜底字表 BuiltinPinyinBank.java 逐条比对（升级零回归底线）
+        // 与内置兜底字表 BuiltinPinyinBank.java 逐条比对（仅 pinyin_5，升级零回归底线）
         def javaFile = file("src/main/java/com/kidslock/app/question/BuiltinPinyinBank.java")
         if (!javaFile.exists()) throw new GradleException("缺失内置兜底字表: ${javaFile}")
         def text = javaFile.text
         def builtin = new HashSet()
         def matcher = text =~ /new BankEntry\("([^"]*)",\s*"([^"]*)"\)/
         while (matcher.find()) { builtin << "${matcher.group(1)}|${matcher.group(2)}" }
-        def asset = new HashSet(entries.collect { "${it.k}|${it.v}" })
+        def asset = new HashSet(slurper.parse(file("src/main/assets/banks/pinyin_5.json")).entries.collect { "${it.k}|${it.v}" })
         if (builtin != asset) throw new GradleException("pinyin_5.json 与 BuiltinPinyinBank 不一致（字表漂移）")
-        println "verifyQuestionBanks: pinyin_5.json OK（${entries.size()} 条，${distinctV.size()} 种拼音）"
+        println "verifyQuestionBanks: pinyin_5.json 与 BuiltinPinyinBank 逐条一致（零漂移）"
 
         // 英语词表：english_0..6.json（PRD R12，D3 落地）。每级条目 >=60、k/v 非空、去重释义 >=4
         for (int g = 0; g <= 6; g++) {

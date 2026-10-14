@@ -84,6 +84,16 @@ public final class BankRepository {
 
     @NonNull
     private LoadResult loadInternal(@NonNull String subject, int grade) {
+        // L0：家长自定义题库优先（R26）。命中且可用即返回；失败透明回退 L1–L3，绝不破坏「永不 null」
+        if (CustomBankStore.hasCustom(appContext, subject, grade)) {
+            LoadResult custom = CustomBankStore.loadCustom(appContext, subject, grade);
+            if (custom != null && custom.usable()) {
+                Log.i(TAG, "题库L0自定义命中: subject=" + subject
+                        + " 年级=" + grade);
+                return custom;
+            }
+        }
+
         // L1：同年级
         LoadResult l1 = tryLoadGrade(subject, grade);
         if (l1 != null && l1.usable()) {

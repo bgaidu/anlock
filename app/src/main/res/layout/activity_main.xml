@@ -439,6 +439,76 @@
                 android:nextFocusRight="@id/btnSubjectPinyin" />
         </LinearLayout>
 
+        <!-- 预览一道题（R24：PIN 门禁之后，复用引擎+锁屏渲染，不计入防重复队列） -->
+        <Button
+            android:id="@+id/btnPreviewQuestion"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_preview_question"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 答题正确率（R25：累计口径，total==0 时隐藏） -->
+        <TextView
+            android:id="@+id/tvAccuracy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_body"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:visibility="gone" />
+
+        <!-- 自定义题库（家长导入，R26） -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/section_custom_bank"
+            android:textColor="@color/highlight"
+            android:textSize="@dimen/text_subtitle"
+            android:layout_marginTop="@dimen/spacing_large"
+            android:layout_marginBottom="@dimen/spacing_small" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/custom_bank_hint"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body"
+            android:gravity="center"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:lineSpacingExtra="4dp" />
+
+        <Button
+            android:id="@+id/btnImportBank"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_import_bank"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <Button
+            android:id="@+id/btnClearBank"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_clear_bank"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 守护服务（无障碍）状态：未开启时点击跳转系统无障碍设置 -->
         <Button
             android:id="@+id/btnGuardStatus"

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/settings_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="@dimen/tv_margin_h">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/preview_title"
+            android:textColor="@color/accent"
+            android:textSize="@dimen/text_title"
+            android:textStyle="bold"
+            android:layout_marginBottom="@dimen/spacing_medium" />
+
+        <!-- 题干 -->
+        <TextView
+            android:id="@+id/tvPreviewStem"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="@dimen/text_hanzi"
+            android:textStyle="bold"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:layout_marginBottom="@dimen/spacing_medium" />
+
+        <!-- 提示 -->
+        <TextView
+            android:id="@+id/tvPreviewHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_subtitle"
+            android:layout_marginBottom="@dimen/spacing_large" />
+
+        <!-- 选项按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginLeft="@dimen/tv_margin_h"
+            android:layout_marginRight="@dimen/tv_margin_h">
+
+            <Button
+                android:id="@+id/btnPreviewOption1"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1"
+                android:layout_margin="@dimen/btn_margin"
+                android:background="@drawable/btn_option_bg"
+                android:textColor="@color/btn_text"
+                android:textSize="@dimen/text_button"
+                android:focusable="true"
+                android:clickable="true"
+                android:nextFocusLeft="@id/btnPreviewOption4"
+                android:nextFocusRight="@id/btnPreviewOption2" />
+
+            <Button
+                android:id="@+id/btnPreviewOption2"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1"
+                android:layout_margin="@dimen/btn_margin"
+                android:background="@drawable/btn_option_bg"
+                android:textColor="@color/btn_text"
+                android:textSize="@dimen/text_button"
+                android:focusable="true"
+                android:clickable="true" />
+
+            <Button
+                android:id="@+id/btnPreviewOption3"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1"
+                android:layout_margin="@dimen/btn_margin"
+                android:background="@drawable/btn_option_bg"
+                android:textColor="@color/btn_text"
+                android:textSize="@dimen/text_button"
+                android:focusable="true"
+                android:clickable="true" />
+
+            <Button
+                android:id="@+id/btnPreviewOption4"
+                style="@style/Widget.AppCompat.Button.Borderless"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/btn_height"
+                android:layout_weight="1"
+                android:layout_margin="@dimen/btn_margin"
+                android:background="@drawable/btn_option_bg"
+                android:textColor="@color/btn_text"
+                android:textSize="@dimen/text_button"
+                android:focusable="true"
+                android:clickable="true"
+                android:nextFocusLeft="@id/btnPreviewOption3"
+                android:nextFocusRight="@id/btnPreviewOption1" />
+
+        </LinearLayout>
+
+        <!-- 反馈 -->
+        <TextView
+            android:id="@+id/tvPreviewFeedback"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/correct_green"
+            android:textSize="@dimen/text_body"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:visibility="gone" />
+
+        <!-- 控制按钮 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="@dimen/spacing_large">
+
+            <Button
+                android:id="@+id/btnPreviewNext"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/btn_height"
+                android:layout_margin="@dimen/btn_margin"
+                android:minWidth="@dimen/btn_min_width"
+                android:text="@string/preview_next"
+                android:textSize="@dimen/text_button"
+                android:background="@drawable/btn_settings_bg"
+                android:textColor="@color/btn_text"
+                android:focusable="true"
+                android:clickable="true" />
+
+            <Button
+                android:id="@+id/btnPreviewClose"
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/btn_height"
+                android:layout_margin="@dimen/btn_margin"
+                android:minWidth="@dimen/btn_min_width"
+                android:text="@string/preview_close"
+                android:textSize="@dimen/text_button"
+                android:background="@drawable/btn_settings_bg"
+                android:textColor="@color/btn_text"
+                android:focusable="true"
+                android:clickable="true" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>

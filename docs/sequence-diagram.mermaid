@@ -1,0 +1,56 @@
+sequenceDiagram
+    participant MA as MainActivity
+    participant PV as QuestionPreviewActivity
+    participant ENG as QuestionEngine(独立实例)
+    participant PV2 as QuestionProvider
+    participant UI as QuestionUi
+
+    MA->>PV: startActivity(Preview)
+    PV->>ENG: create(ctx, pref)  // 与锁屏同工厂，独立 recent
+    PV->>ENG: nextPreviewQuestion()
+    ENG->>PV2: next(grade, random)  // 绕过 recent
+    PV2-->>ENG: Question
+    ENG-->>PV: Question
+    PV->>UI: render(q, tvStem, tvHint, btnOption1..4)
+    Note over PV: 选项点击仅高亮对错（家长参考），不解锁、不计数
+    PV->>ENG: nextPreviewQuestion()  // 点"换一题"
+    ENG-->>PV: 新 Question
+    PV->>UI: render(...)
+
+---
+
+sequenceDiagram
+    participant MA as MainActivity
+    participant SAF as 系统文件选择器
+    participant CBS as CustomBankStore
+    participant BR as BankRepository
+    participant REPO as files/custom_banks
+
+    MA->>MA: 选 科目+年级（弹窗）
+    MA->>SAF: ACTION_OPEN_DOCUMENT(*/*, application/json)
+    SAF-->>MA: onActivityResult(uri)
+    MA->>MA: 读 uri 文本 → json
+    MA->>CBS: importBank(ctx, subject, grade, json)
+    CBS->>CBS: org.json 校验(entries≥4, k/v非空)
+    alt 校验通过
+        CBS->>REPO: 写 <subject>_<grade>.json
+        CBS-->>MA: true → Toast「已导入」
+    else 校验失败
+        CBS-->>MA: false → Toast「格式不正确」
+    end
+    Note over BR: 下次 load(subject,grade) 先查 L0 CustomBankStore，命中即用
+
+---
+
+sequenceDiagram
+    participant LSA as LockScreenActivity
+    participant PM as PrefManager
+    participant MA2 as MainActivity
+
+    LSA->>LSA: onOptionSelected(index)
+    LSA->>LSA: correct = (index==q.correctIndex)
+    LSA->>PM: recordAnswer(correct)  // total++; 命中则 correct++
+    Note over LSA: 后续解锁/清零逻辑不变
+    MA2->>PM: getAccuracyPercent()    // 设置页 updateStatus
+    PM-->>MA2: -1(无数据) 或 百分比
+    MA2->>MA2: tvAccuracy 显示「累计正确率 xx%」

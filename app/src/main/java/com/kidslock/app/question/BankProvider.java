@@ -6,11 +6,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * 题库型 provider 抽象基类：拼音与英语共用。
@@ -59,36 +56,10 @@ public abstract class BankProvider implements QuestionProvider {
 
         BankEntry chosen = pool.get(random.nextInt(pool.size()));
 
-        // 收集与正确项 v 不同的去重候选（同池取样，杜绝占位文本）
-        Set<String> candidates = new HashSet<>();
-        for (BankEntry e : pool) {
-            if (!e.v.equals(chosen.v)) candidates.add(e.v);
-        }
-        if (candidates.size() < 3) return null; // 凑不齐 3 个干扰项 → 失败
-
-        List<String> cands = new ArrayList<>(candidates);
-        Collections.shuffle(cands, random);
-        List<String> distractors = new ArrayList<>(cands.subList(0, 3));
-
-        List<String> options = new ArrayList<>(4);
-        options.add(chosen.v);
-        options.addAll(distractors);
-        Collections.shuffle(options, random); // 正确项随机落位
-
-        if (!isOptionSetValid(options, chosen.v)) return null;
+        // 抽 3 个与正确项 v 不同且互不相同的干扰项（同池取样，杜绝占位文本），集中到 DistractorSampler
+        List<String> options = DistractorSampler.sample(pool, chosen, /*answerKey=*/false, random);
+        if (options == null) return null; // 凑不齐 3 个干扰项 → 失败
         return buildQuestion(chosen, options, random);
-    }
-
-    /** 4 选项文本互不相同且含正确项（设计 §9.5 校验） */
-    private static boolean isOptionSetValid(@NonNull List<String> options, @NonNull String answer) {
-        if (options.size() != 4) return false;
-        Set<String> seen = new HashSet<>();
-        boolean hasAnswer = false;
-        for (String o : options) {
-            if (!seen.add(o)) return false; // 文本重复
-            if (o.equals(answer)) hasAnswer = true;
-        }
-        return hasAnswer;
     }
 
     /** 由条目 + 已洗牌的 4 选项构建 Question */

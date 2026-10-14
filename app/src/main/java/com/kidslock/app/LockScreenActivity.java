@@ -202,6 +202,9 @@ public class LockScreenActivity extends AppCompatActivity {
             b.setEnabled(false);
         }
 
+        // R25：记录作答结果（仅累计统计，不触碰计时/防绕过核心）
+        pref.recordAnswer(index == currentQuestion.correctIndex);
+
         // 判题改为索引比较（设计 §9.2 / D1：Activity 内零科目分支）
         if (index == currentQuestion.correctIndex) {
             // 答对了

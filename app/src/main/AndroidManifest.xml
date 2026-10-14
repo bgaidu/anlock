@@ -56,6 +56,13 @@
             android:screenOrientation="landscape"
             android:theme="@style/Theme.KidsLock.FullScreen" />
 
+        <!-- Question Preview Activity (R24：预览一道题，PIN 门禁之后，不导出) -->
+        <activity
+            android:name=".QuestionPreviewActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.KidsLock" />
+
         <!-- HOME launcher alias (disabled by default, enabled when locked) -->
         <activity-alias
             android:name=".LockScreenHome"

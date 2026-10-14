@@ -1,0 +1,95 @@
+classDiagram
+    class Question {
+        +String stem
+        +String hint
+        +List~String~ options
+        +int correctIndex
+        +String subject
+        +String id
+        +StemStyle stemStyle
+    }
+    class QuestionProvider {
+        <<interface>>
+        +subject() String
+        +isAvailable(int) boolean
+        +next(int, Random) Question
+    }
+    class BankProvider {
+        <<abstract>>
+        #subject / #hint / #stemStyle
+        +next(int, Random) Question
+        #buildQuestion(BankEntry, List~String~, Random) Question
+    }
+    class PinyinProvider
+    class EnglishProvider
+    class CituProvider
+    class MathProvider
+    class MathSpec {
+        +MathKind[][] BY_GRADE
+        +generate(MathKind, Random) MathProblem
+    }
+    class BankRepository {
+        +load(String, int) LoadResult
+        +assetPath(String, int) String
+    }
+    class LoadResult {
+        +List~BankEntry~ entries
+        +int level
+        +usable() boolean
+    }
+    class BankEntry {
+        +String k
+        +String v
+    }
+    class DistractorSampler {
+        <<新增 纯逻辑 无Android依赖>>
+        +sample(List~BankEntry~, BankEntry, boolean answerKey, Random) List~String~
+    }
+    class QuestionUi {
+        <<新增>>
+        +render(Activity, Question, TextView, TextView, Button[]) void
+    }
+    class QuestionEngine {
+        +create(Context, PrefManager) QuestionEngine
+        +nextQuestion() Question
+        +nextPreviewQuestion() Question
+        -buildSchedule(Set~String~, int, Random) List~String~
+    }
+    class QuestionPreviewActivity {
+        <<新增>>
+        -engine : QuestionEngine
+        +onCreate() / onOptionSelected()
+    }
+    class CustomBankStore {
+        <<新增>>
+        +hasCustom(String, int) boolean
+        +loadCustom(Context, String, int) LoadResult
+        +importBank(Context, String, int, String) boolean
+        +listCustom(Context) List~String~
+        +clear(Context, String, int) boolean
+    }
+    class PrefManager {
+        +getGrade() / getSubjects()
+        +recordAnswer(boolean) void
+        +getAccuracyPercent() int
+    }
+
+    QuestionProvider <|.. BankProvider
+    QuestionProvider <|.. MathProvider
+    BankProvider <|-- PinyinProvider
+    BankProvider <|-- EnglishProvider
+    BankProvider <|-- CituProvider
+    BankProvider ..> DistractorSampler : 改调(去Android依赖)
+    EnglishProvider ..> DistractorSampler
+    BankProvider ..> BankRepository
+    BankRepository ..> LoadResult
+    BankRepository ..> CustomBankStore : L0 优先
+    LoadResult o-- BankEntry
+    MathProvider ..> MathSpec
+    QuestionEngine o-- QuestionProvider
+    QuestionEngine ..> Question : 产出
+    LockScreenActivity ..> QuestionUi : 渲染(R25埋点)
+    QuestionPreviewActivity ..> QuestionUi : 渲染
+    QuestionPreviewActivity ..> QuestionEngine : 预览(独立实例)
+    MainActivity ..> PrefManager : 正确率展示/导入入口
+    LockScreenActivity ..> PrefManager : recordAnswer

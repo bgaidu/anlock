@@ -18,15 +18,26 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.net.Uri;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.kidslock.app.question.Grade;
 import com.kidslock.app.question.Subject;
+import com.kidslock.app.question.BankRepository;
+import com.kidslock.app.question.CustomBankStore;
+import com.kidslock.app.QuestionPreviewActivity;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -37,6 +48,18 @@ import java.util.Set;
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQ_POST_NOTIFICATIONS = 1001;
+
+    /** R26 自定义题库导入：选文件后的回调 launcher（注册于 onCreate，对应 ACTION_OPEN_DOCUMENT） */
+    private ActivityResultLauncher<String[]> importLauncher;
+    /** 待写入的导入目标（SAF 回调前由对话框设置；clear 时置空） */
+    @Nullable
+    private String pendingImportSubject;
+    private int pendingImportGrade = -1;
+
+    /** 仅题库型科目支持家长导入（与 CustomBankStore.isSupported 对齐） */
+    private static final String[] IMPORTABLE_SUBJECTS = {
+            Subject.PINYIN, Subject.ENGLISH, Subject.CITU
+    };
 
     private PrefManager pref;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -51,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
     // 出题设置（年级 / 科目）
     private TextView tvQuestionGrade;
     private TextView tvQuestionSubjects;
+    private TextView tvAccuracy;
     private Button[] btnGrades = new Button[7];
     private Button btnSubjectPinyin;
     private Button btnSubjectMath;
@@ -77,6 +101,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         pref = new PrefManager(this);
+
+        // R26 自定义题库导入：注册文件选择器回调（必须在 onCreate 内、早于 onStart 注册）
+        importLauncher = registerForActivityResult(
+                new ActivityResultContracts.OpenDocument(), this::onBankFilePicked);
 
         // 如果当前处于锁屏状态，禁止进入设置页（防止从桌面图标绕过锁屏解锁）
         if (pref.isLocked()) {
@@ -158,6 +186,7 @@ public class MainActivity extends AppCompatActivity {
 
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade);
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects);
+        tvAccuracy = findViewById(R.id.tvAccuracy);
         btnGrades[0] = findViewById(R.id.btnGrade0);
         btnGrades[1] = findViewById(R.id.btnGrade1);
         btnGrades[2] = findViewById(R.id.btnGrade2);
@@ -330,6 +359,16 @@ public class MainActivity extends AppCompatActivity {
         btnSubjectEnglish.setOnClickListener(v -> onSubjectToggle(Subject.ENGLISH));
         btnSubjectCitu.setOnClickListener(v -> onSubjectToggle(Subject.CITU));
 
+        // 预览一道题（R24：PIN 门禁之后，复用引擎 + 锁屏渲染，不计入防重复队列）
+        findViewById(R.id.btnPreviewQuestion).setOnClickListener(v -> {
+            Intent preview = new Intent(this, QuestionPreviewActivity.class);
+            startActivity(preview);
+        });
+
+        // 自定义题库导入 / 清除（R26：家长在 PIN 门禁之后操作）
+        findViewById(R.id.btnImportBank).setOnClickListener(v -> showImportBankDialog());
+        findViewById(R.id.btnClearBank).setOnClickListener(v -> showClearBankDialog());
+
         // 开始计时
         findViewById(R.id.btnStartTimer).setOnClickListener(v -> {
             int minutes = pref.getWatchLimitMinutes();
@@ -456,6 +495,15 @@ public class MainActivity extends AppCompatActivity {
             tvStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
             tvRemaining.setText("");
         }
+
+        // 答题正确率（R25：累计口径，total==0 时隐藏，避免显示无意义的 0%）
+        int acc = pref.getAccuracyPercent();
+        if (acc < 0) {
+            tvAccuracy.setVisibility(View.GONE);
+        } else {
+            tvAccuracy.setText(getString(R.string.accuracy_text, acc));
+            tvAccuracy.setVisibility(View.VISIBLE);
+        }
     }
 
     private void toast(String msg) {
@@ -506,5 +554,98 @@ public class MainActivity extends AppCompatActivity {
     private boolean isOnlyEnabled(@NonNull String subject) {
         Set<String> s = pref.getSubjects();
         return s.size() == 1 && s.contains(subject);
+    }
+
+    // ==================== 自定义题库（家长导入，R26） ====================
+
+    /** 0..6 年级全称标签数组（每次新建，避免被 AlertDialog 长期持有复用引发错位） */
+    @NonNull
+    private String[] gradeLabels() {
+        String[] arr = new String[Grade.MAX - Grade.MIN + 1];
+        for (int g = Grade.MIN; g <= Grade.MAX; g++) arr[g] = Grade.fullLabel(g);
+        return arr;
+    }
+
+    /** 弹出"选科目 → 选年级 → 选文件"流程（导入自定义题库） */
+    private void showImportBankDialog() {
+        final String[] labels = new String[IMPORTABLE_SUBJECTS.length];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = Subject.label(IMPORTABLE_SUBJECTS[i]);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.import_choose_subject)
+                .setItems(labels, (dialog, whichSubject) -> {
+                    final String subject = IMPORTABLE_SUBJECTS[whichSubject];
+                    new AlertDialog.Builder(this)
+                            .setTitle(R.string.import_choose_grade)
+                            .setItems(gradeLabels(), (d, whichGrade) -> {
+                                pendingImportSubject = subject;
+                                pendingImportGrade = whichGrade;
+                                importLauncher.launch(new String[]{"*/*"});
+                            })
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /** 弹出"选科目 → 选年级"流程（清除自定义题库） */
+    private void showClearBankDialog() {
+        final String[] labels = new String[IMPORTABLE_SUBJECTS.length];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = Subject.label(IMPORTABLE_SUBJECTS[i]);
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.clear_choose_subject)
+                .setItems(labels, (dialog, whichSubject) -> {
+                    final String subject = IMPORTABLE_SUBJECTS[whichSubject];
+                    new AlertDialog.Builder(this)
+                            .setTitle(R.string.clear_choose_grade)
+                            .setItems(gradeLabels(), (d, whichGrade) -> {
+                                boolean ok = CustomBankStore.clear(this, subject, whichGrade);
+                                // 清缓存，使下次出题重新解析（命中 L0 或回退 L1–L3）
+                                BankRepository.get(this).clearCache();
+                                toast(ok
+                                        ? getString(R.string.clear_done,
+                                        Subject.label(subject), Grade.fullLabel(whichGrade))
+                                        : getString(R.string.clear_failed));
+                            })
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * SAF 选文件后的回调：读内容 → {@link CustomBankStore#importBank} → 清缓存让出题立即生效。
+     * 读取/解析失败均给出 Toast，绝不崩溃；导入是否成功由 CustomBankStore 内部严格校验决定。
+     */
+    private void onBankFilePicked(@Nullable Uri uri) {
+        final String subject = pendingImportSubject;
+        final int grade = pendingImportGrade;
+        pendingImportSubject = null;
+        pendingImportGrade = -1;
+        if (uri == null || subject == null) return;
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) {
+                toast(getString(R.string.import_read_failed));
+                return;
+            }
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(is, StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            boolean ok = CustomBankStore.importBank(this, subject, grade, sb.toString());
+            // 无论成败都清缓存：成功则下次出题立即命中 L0；失败也清掉旧缓存避免脏数据
+            BankRepository.get(this).clearCache();
+            toast(ok
+                    ? getString(R.string.import_done, Subject.label(subject), Grade.fullLabel(grade))
+                    : getString(R.string.import_invalid));
+        } catch (Exception e) {
+            toast(getString(R.string.import_read_failed));
+        }
     }
 }

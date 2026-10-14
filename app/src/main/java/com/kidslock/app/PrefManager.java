@@ -457,4 +457,31 @@ public class PrefManager {
                 : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
         pm.setComponentEnabledSetting(alias, state, PackageManager.DONT_KILL_APP);
     }
+
+    // ===== 答题正确率统计（R25） =====
+    // 仅新增统计 key，严禁触碰上方计时对账逻辑（deductOfflineIfAny 等）。
+    private static final String KEY_STAT_CORRECT = "stat_correct";
+    private static final String KEY_STAT_TOTAL = "stat_total";
+
+    /** 记录一次作答结果（不触碰计时对账）。correct=true 计为答对。 */
+    public void recordAnswer(boolean correct) {
+        int total = prefs.getInt(KEY_STAT_TOTAL, 0) + 1;
+        int c = prefs.getInt(KEY_STAT_CORRECT, 0) + (correct ? 1 : 0);
+        prefs.edit().putInt(KEY_STAT_TOTAL, total).putInt(KEY_STAT_CORRECT, c).apply();
+    }
+
+    public int getStatTotal() {
+        return prefs.getInt(KEY_STAT_TOTAL, 0);
+    }
+
+    public int getStatCorrect() {
+        return prefs.getInt(KEY_STAT_CORRECT, 0);
+    }
+
+    /** 累计正确率百分比；total==0 时返回 -1（调用方据此隐藏显示）。 */
+    public int getAccuracyPercent() {
+        int total = getStatTotal();
+        if (total <= 0) return -1;
+        return Math.round(100f * getStatCorrect() / total);
+    }
 }
