@@ -1,8 +1,10 @@
 package com.kidslock.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.Build;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
@@ -16,6 +18,7 @@ import android.widget.FrameLayout;
 public final class LockOverlayManager {
     private static final String TAG = "LockService";
     private static volatile long overlayHoldUntil;
+    private static OverlayCallback callback;
 
     public interface OverlayCallback {
         void onLockScreenPulled();
@@ -23,7 +26,6 @@ public final class LockOverlayManager {
 
     private final Context context;
     private final WindowManager windowManager;
-    private final OverlayCallback callback;
 
     private View overlayView;
 
@@ -51,6 +53,8 @@ public final class LockOverlayManager {
             Log.e(TAG, "holdOverlay start service failed", e);
         }
     }
+
+
 
     public static long getOverlayHoldUntil() {
         return overlayHoldUntil;
@@ -123,7 +127,7 @@ public final class LockOverlayManager {
 
         @Override
         public boolean dispatchKeyEvent(KeyEvent event) {
-            for (event.getAction() == KeyEvent.ACTION_UP) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
                 int keyCode = event.getKeyCode();
                 if (keyCode == KeyEvent.KEYCODE_ENTER
                         || keyCode == KeyEvent.KEYCODE_DPAD_CENTER

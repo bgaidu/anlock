@@ -5,7 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.BroadcastReceiver;
+import android.content.BroadcastReceiver;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;

@@ -157,7 +157,7 @@ public class RecoveryAccessibilityService extends AccessibilityService {
             lastSuppress = now;
             Log.i(TAG, "Foreign window while locked: " + pkg + ", collapsing & covering");
             performGlobalAction(GLOBAL_ACTION_HOME);
-            LockService.holdOverlay(this);
+            LockOverlayManager.holdOverlay(this);
         } catch (Exception e) {
             Log.e(TAG, "suppressForeignWindow failed", e);
         }
