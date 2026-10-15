@@ -11,7 +11,6 @@
         android:gravity="center_horizontal"
         android:padding="@dimen/tv_margin_h">
 
-        <!-- 标题 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -21,7 +20,6 @@
             android:textStyle="bold"
             android:layout_marginBottom="@dimen/spacing_medium" />
 
-        <!-- 题干 -->
         <TextView
             android:id="@+id/tvPreviewStem"
             android:layout_width="wrap_content"
@@ -32,7 +30,6 @@
             android:layout_marginTop="@dimen/spacing_medium"
             android:layout_marginBottom="@dimen/spacing_medium" />
 
-        <!-- 提示 -->
         <TextView
             android:id="@+id/tvPreviewHint"
             android:layout_width="wrap_content"
@@ -41,7 +38,6 @@
             android:textSize="@dimen/text_subtitle"
             android:layout_marginBottom="@dimen/spacing_large" />
 
-        <!-- 选项按钮 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -62,8 +58,9 @@
                 android:textSize="@dimen/text_button"
                 android:focusable="true"
                 android:clickable="true"
-                android:nextFocusLeft="@id/btnPreviewOption4"
-                android:nextFocusRight="@id/btnPreviewOption2" />
+                android:nextFocusLeft="@id/btnPreviewOption2"
+                android:nextFocusRight="@id/btnPreviewOption2"
+                android:nextFocusDown="@id/btnPreviewOption3" />
 
             <Button
                 android:id="@+id/btnPreviewOption2"
@@ -76,7 +73,20 @@
                 android:textColor="@color/btn_text"
                 android:textSize="@dimen/text_button"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"
+                android:nextFocusLeft="@id/btnPreviewOption1"
+                android:nextFocusRight="@id/btnPreviewOption1"
+                android:nextFocusDown="@id/btnPreviewOption4" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginLeft="@dimen/tv_margin_h"
+            android:layout_marginRight="@dimen/tv_margin_h">
 
             <Button
                 android:id="@+id/btnPreviewOption3"
@@ -89,7 +99,10 @@
                 android:textColor="@color/btn_text"
                 android:textSize="@dimen/text_button"
                 android:focusable="true"
-                android:clickable="true" />
+                android:clickable="true"
+                android:nextFocusLeft="@id/btnPreviewOption4"
+                android:nextFocusRight="@id/btnPreviewOption4"
+                android:nextFocusUp="@id/btnPreviewOption1" />
 
             <Button
                 android:id="@+id/btnPreviewOption4"
@@ -104,11 +117,11 @@
                 android:focusable="true"
                 android:clickable="true"
                 android:nextFocusLeft="@id/btnPreviewOption3"
-                android:nextFocusRight="@id/btnPreviewOption1" />
+                android:nextFocusRight="@id/btnPreviewOption3"
+                android:nextFocusUp="@id/btnPreviewOption2" />
 
         </LinearLayout>
 
-        <!-- 反馈 -->
         <TextView
             android:id="@+id/tvPreviewFeedback"
             android:layout_width="wrap_content"
@@ -118,7 +131,6 @@
             android:layout_marginTop="@dimen/spacing_medium"
             android:visibility="gone" />
 
-        <!-- 控制按钮 -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
