@@ -1,5 +1,6 @@
 package com.kidslock.app.question
 
+import java.util.Random
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -246,7 +247,7 @@ object MathSpec {
     }
 
     private fun genMixedTwoStep(r: Random): MathProblem? {
-        val ans: Long
+        var ans: Long
         val stem: String
         val cands = ArrayList<Long>()
         if (r.nextBoolean()) {
@@ -276,7 +277,7 @@ object MathSpec {
         var a = randInt(r, 1, 90)
         var b = randInt(r, 1, 90)
         val sub = r.nextBoolean()
-        val ansFp: Long
+        var ansFp: Long
         val stem: String
         if (sub) {
             if (a < b) { val t = a; a = b; b = t }
