@@ -215,3 +215,43 @@ interface BankSource {
 ---
 
 **总结**：项目核心功能已完善，当前最优先的是 **安全加固（PIN）+ 测试覆盖**，其次是 **功能增强（正确率 + 自定义题库）**，最后是 **架构优化和现代化**。建议按 M1 -> M2 -> M3 节奏推进，不要跳步。
+
+---
+
+## 九、进度记录（2026-10-16）：Kotlin 迁移完成
+
+Kotlin 迁移全部完成！ b69ce53
+所有 Java 文件已迁移到 Kotlin：
+
+- question 包：全部迁移
+- PrefManager、LockService、TimerManager、LockGuard、LockOverlayManager
+- BootReceiver、AlarmReceiver、RecoveryAccessibilityService
+- MainActivity、LockScreenActivity、QuestionPreviewActivity
+
+剩余 M4 任务：
+
+- T12：多孩子配置 - 支持多个孩子档案
+- T13：远程题库 - 需后端支持
+- T14：Compose 预览 - 预览界面用 Compose 重写
+
+根据规划文档 docs/opencode给的规划.txt 和代码核对，进度如下：
+
+已完成：M1（T1–T5）、M2（T6–T7）、M3（T8–T9）、M4-T11（Kotlin 迁移，源码仅剩 3 个测试 Java 文件）、CI/CD（.github/workflows/build.yml、release.yml）。
+
+未完成任务：
+
+| 任务 | 里程碑 | 状态 |
+|---|---|---|
+| T10 设备管理员 / Keyguard 增强（可选） | M3 | 未做，代码中无 DeviceAdmin/KeyguardManager |
+| T12 Jetpack Compose 预览界面 | M4 | 未做，build.gradle 无 compose 配置 |
+| T13 远程题库（需后端） | M4 | 未做，无 RemoteBankSource |
+| T14 多孩子配置 | M4 | 未做，PrefManager 仍单例 key |
+
+工程化建设（贯穿全程）未做：
+
+- R8 混淆（minifyEnabled false 未开启）+ proguard-rules.pro keep 规则
+- Checkstyle / Spotless 代码风格统一
+- PR 模板（改动描述 + 自测截图 + 影响范围）
+- 监控上报（导入失败率 / 出题兜底触发 / 正确率分布）
+
+建议优先级：T14 多孩子配置（纯本地、无后端依赖）或 T12 Compose 预览（独立 Activity，风险低）。
