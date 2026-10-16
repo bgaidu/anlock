@@ -1,0 +1,283 @@
+# M4 长期演进实现方案
+
+## 一、Kotlin 迁移
+
+### 1.1 策略：渐进式迁移，新旧共存
+
+```
+阶段 1（2 周）：基础设施
+├── 添加 Kotlin 支持（build.gradle 引入 kotlin-stdlib + 插件）
+├── 新代码全部用 Kotlin 写
+├── 工具类优先迁移（BankEntry、Question、RecentQuestionQueue）
+└── 保持 Java 可互操作（@JvmStatic、@JvmField、@JvmOverloads）
+
+阶段 2（2 周）：核心逻辑
+├── QuestionEngine → QuestionEngine.kt
+├── PrefManager → PrefManager.kt（注意 SharedPreferences 的空安全）
+└── BankRepository + BankSource 体系 → .kt
+
+阶段 3（2 周）：UI 层
+├── MainActivity → MainActivity.kt
+├── LockScreenActivity → LockScreenActivity.kt
+├── QuestionPreviewActivity → .kt
+└── Adapter/自定义 View → .kt
+```
+
+### 1.2 技术要点
+
+```kotlin
+// build.gradle 添加
+plugins {
+    id 'org.jetbrains.kotlin.android' version '1.9.0'
+}
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+}
+```
+
+```kotlin
+// 迁移示例：QuestionEngine.kt
+class QuestionEngine private constructor(
+    private val context: Context,
+    private val providers: List<QuestionProvider>,
+    private val schedule: List<String>,
+    private val grade: Int
+) {
+    companion object {
+        @JvmStatic
+        fun create(ctx: Context, pref: PrefManager): QuestionEngine { ... }
+    }
+    
+    fun nextQuestion(): Question { ... }
+    fun nextPreviewQuestion(): Question { ... }
+}
+```
+
+### 1.3 风险与对策
+
+| 风险 | 对策 |
+|---|---|
+| 迁移引入回归 | 逐模块迁移，每次迁移后跑单测 + 真机测试 |
+| 空安全问题 | Kotlin 非空类型 + lateinit + 可空类型明确标注 |
+| 协程替代 Handler | 先在 TimerManager 试点，确认稳定后再推广 |
+| 编译时间增加 | 增量编译 + Gradle daemon |
+
+---
+
+## 二、远程题库
+
+### 2.1 架构
+
+```
+家长设备 → HTTPS 请求 → 后端 API → 返回 JSON 字表
+                                    ↓
+                         RemoteBankSource（实现 BankSource）
+                                    ↓
+                         BankRepository L0/L0.5 优先级
+```
+
+### 2.2 后端 API 设计
+
+```json
+GET /api/v1/banks/{subject}/{grade}
+Response:
+{
+  "version": "1.0.0",
+  "subject": "pinyin",
+  "grade": 3,
+  "entries": [{"k": "脑", "v": "nǎo"}, ...],
+  "checksum": "sha256:abc123..."
+}
+```
+
+```json
+GET /api/v1/banks/manifest
+Response:
+{
+  "pinyin": { "0": { "version": "1.0", "url": "...", "sha256": "..." }, ... },
+  "english": { ... },
+  "ciyu": { ... }
+}
+```
+
+### 2.3 客户端实现
+
+```kotlin
+class RemoteBankSource(
+    private val context: Context,
+    private val apiUrl: String = "https://api.kidslock.app"
+) : BankSource {
+    
+    override fun priority() = 0  // 与 CustomBankSource 同级，可配置
+    
+    override fun load(subject: String, grade: Int): LoadResult? {
+        // 1. 检查本地缓存（7 天有效）
+        // 2. 缓存过期则请求 manifest 获取最新 URL
+        // 3. 下载字表 JSON 并校验 SHA256
+        // 4. 写入本地缓存
+        // 5. 解析返回 LoadResult
+    }
+}
+```
+
+### 2.4 安全考虑
+
+- **HTTPS 强制**：`network_security_config.xml` 禁止明文 HTTP
+- **证书固定**：SSL Pinning 防止中间人攻击
+- **完整性校验**：SHA256 校验下载内容
+- **离线可用**：缓存命中时无网络也能出题
+
+### 2.5 后端选型建议
+
+| 方案 | 优点 | 缺点 |
+|---|---|---|
+| **Cloudflare Workers + R2** | 零服务器运维、全球 CDN、免费额度大 | 需学习 KV/R2 API |
+| **Firebase Storage + Functions** | 生态成熟、认证集成 | 国内访问不稳定 |
+| **自建 VPS** | 完全可控 | 运维成本高 |
+
+---
+
+## 三、多孩子配置
+
+### 3.1 数据模型变更
+
+```kotlin
+// 新增 Profile 数据类
+data class ChildProfile(
+    val id: String,           // UUID
+    val name: String,         // 孩子昵称
+    val avatar: Int,          // 头像 drawable res
+    val grade: Int,           // 年级 0..6
+    val subjects: Set<String>,// 启用科目
+    val watchLimitMin: Int,   // 观看时长
+    val unlockCount: Int      // 解锁题数
+)
+
+// PrefManager 新增多 Profile 管理
+class ProfileManager(context: Context) {
+    fun addProfile(profile: ChildProfile): Boolean
+    fun removeProfile(id: String): Boolean
+    fun updateProfile(profile: ChildProfile): Boolean
+    fun getProfile(id: String): ChildProfile?
+    fun getActiveProfile(): ChildProfile?
+    fun setActiveProfile(id: String): Boolean
+    fun listProfiles(): List<ChildProfile>
+}
+```
+
+### 3.2 UI 变更
+
+```
+设置页新增"孩子管理"区：
+┌─────────────────────────────┐
+│ 孩子管理                      │
+├─────────────────────────────┤
+│ [头像] 小明 ▼  [编辑] [删除]  │
+│ 年级：三年级  科目：拼音、数学  │
+│ [+ 添加孩子]                  │
+└─────────────────────────────┘
+```
+
+锁屏界面切换：
+- 锁屏时显示当前活跃孩子的题目
+- 解锁后切换到下一个孩子（如果有多人）
+
+### 3.3 存储方案
+
+```json
+// prefs 文件新增 key
+{
+  "profiles": [
+    {"id": "uuid1", "name": "小明", "grade": 3, "subjects": ["pinyin","math"], ...},
+    {"id": "uuid2", "name": "小红", "grade": 1, "subjects": ["pinyin"], ...}
+  ],
+  "active_profile": "uuid1"
+}
+```
+
+### 3.4 迁移策略
+
+- 单孩子用户：自动创建默认 Profile，保留原有设置
+- 多孩子用户：手动添加，每个 Profile 独立计时
+
+---
+
+## 四、Compose 预览界面
+
+### 4.1 为什么只做预览
+
+- 锁屏界面要求稳定性，Compose 渲染性能在低端 TV 上可能不如原生
+- 预览界面是低频操作，Compose 开发效率高
+- 风险隔离：预览崩溃不影响核心锁屏
+
+### 4.2 实现
+
+```kotlin
+// QuestionPreviewActivity.kt 使用 Compose
+class QuestionPreviewActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            PreviewScreen(engine = engine)
+        }
+    }
+}
+
+@Composable
+fun PreviewScreen(engine: QuestionEngine) {
+    var question by remember { mutableStateOf(engine.nextPreviewQuestion()) }
+    
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Text(text = question.stem, fontSize = 56.sp)
+        Text(text = question.hint, fontSize = 24.sp, color = Color.Gray)
+        
+        Spacer(Modifier.height(24.dp))
+        
+        question.options.chunked(2).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                row.forEach { option ->
+                    Button(
+                        onClick = { /* 高亮对错 */ },
+                        modifier = Modifier.weight(1f).padding(8.dp)
+                    ) {
+                        Text(option)
+                    }
+                }
+            }
+        }
+        
+        Row {
+            Button(onClick = { question = engine.nextPreviewQuestion() }) {
+                Text("换一题")
+            }
+            Button(onClick = { finish() }) {
+                Text("关闭")
+            }
+        }
+    }
+}
+```
+
+---
+
+## 五、任务依赖与排期
+
+```
+W1-2：Kotlin 阶段 1（基础设施 + 工具类）
+W3-4：Kotlin 阶段 2（核心逻辑）
+W5-6：Kotlin 阶段 3（UI 层）
+W7-8：远程题库（需后端，可并行）
+W9-10：多孩子配置
+W11：Compose 预览
+W12：集成测试 + 回归
+```
+
+## 六、建议优先级
+
+1. **Kotlin 迁移** - 提升可维护性，为后续功能铺路
+2. **多孩子配置** - 解决实际多孩家庭痛点
+3. **远程题库** - 需后端投入，可延后
+4. **Compose 预览** - 锦上添花，最后做
+
+你想从哪个开始？

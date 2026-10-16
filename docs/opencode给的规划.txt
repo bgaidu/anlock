@@ -1,0 +1,217 @@
+结合项目现状、已有迭代规划和我的建议，以下是完整规划：
+
+---
+
+# KidsLock 完整规划
+
+## 一、项目现状评估
+
+| 维度 | 评价 | 说明 |
+|---|---|---|
+| **功能完整度** | 优秀 | 核心闭环完整：计时→锁屏→答题/PIN 解锁 |
+| **防绕过** | 优秀 | `elapsedRealtime` + 熄屏暂停 + `UsageStats` 补扣 + 悬浮窗守护，多厂商实测 |
+| **代码质量** | 良好 | 结构清晰、命名规范、修复记录详细 |
+| **测试覆盖** | 不足 | 仅 `verify_schedule.py`（Python）+ R23 单测，核心逻辑无 JVM 测试 |
+| **安全性** | 一般 | PIN 单轮 SHA-256（4 位数字可暴力）、无强制改默认 PIN |
+| **工程化** | 不足 | 无 CI、无代码审查流程、混淆未开启 |
+| **架构扩展性** | 一般 | L0-L3 硬编码、`LockService` 职责过重、纯 Java |
+
+---
+
+## 二、短期迭代（P1，1-2 周）
+
+> 目标：补齐已知短板，不引入新功能
+
+### T1 — 验收确认基线（0.5 天）
+
+- 核对 §0.2 表格已落地项
+- 真机验证英语正反向混合、语文正向、底部文案中性化
+- 输出：验收报告
+
+### T2 — 拼音分级字表资产（2-3 天）
+
+- 新建 `pinyin_0..6.json`，`pinyin_5.json` 沿用微调
+- 字源依据：**小学语文识字表**（需在文档注明版本）
+- 每级 `distinct(v) >= 4`
+- 构建校验下限：学前 >= 60，一~六 >= 100
+- 人工抽验每级 20 条
+- 扩展 `verifyQuestionBanks` 支持年级感知下限
+
+### T3 — 干扰项质量单测（2-3 天）
+
+- 抽取 `DistractorSampler`（无 Android 依赖）
+- `BankProvider` / `EnglishProvider` 改调
+- 单测覆盖：拼音 / 英语 / 语文（内存构造）+ 数学 7 年级
+- `ScheduleTest` 镜像 `buildSchedule` 不变量
+- 新增 `BankRepositoryTest`（mock AssetManager，覆盖 assets 加载路径）
+
+### T4 — 预览入口（1-2 天）
+
+- 新增 `QuestionPreviewActivity` + `QuestionUi` 抽取
+- 预览按钮置于设置页出题区内（PIN 门禁之后）
+- 独立 `QuestionEngine` 实例 + `nextPreviewQuestion()` 绕过 recent
+- 提供「换一题 / 关闭」控制
+- 验收：预览不污染真实防重复队列
+
+### T5 — PIN 安全加固（1 天）
+
+- 哈希升级：`PBKDF2WithHmacSHA256`，迭代 >= 10000 次
+- 首次启动强制弹窗修改默认 PIN
+- 保留旧版明文自动升级路径
+- 设置页显示 PIN 是否已修改状态
+
+---
+
+## 三、中期迭代（P2，2-4 周）
+
+> 目标：功能增强 + 架构优化
+
+### T6 — 答题正确率统计（2 天）
+
+- `PrefManager` 新增 `stat_correct` / `stat_total`
+- `recordAnswer` 仅在判题时调用，不触碰计时对账
+- 设置页显示累计正确率（`total==0` 时隐藏）
+- 提供 `resetStats()` 重置入口
+- 不在锁屏界面暴露数值
+
+### T7 — 自定义题库导入（5-7 天，最大）
+
+**MVP 范围**：仅拼音 / 英语 / 语文（题库型），数学不支持
+
+- `CustomBankStore`：写入 `getFilesDir()/custom_banks/<s>_<g>.json`
+- 导入校验：`entries >= 4`、k/v 非空、**schema 版本号**、**文件大小 <= 1MB**、**嵌套深度 <= 5**
+- `BankRepository` L0 自定义优先，失败透明回退 L1-L3
+- 导入流程：设置页 -> 选科目+年级 -> SAF 选文件 -> 校验 -> Toast
+- 提供「清除自定义题库」
+- 原子写入：先写临时文件，校验通过后 rename
+
+### T8 — `LockService` 拆分（3 天）
+
+```
+LockService (计时 + 前台服务)
+    |
+    +-- TimerManager (elapsedRealtime 递减 + 熄屏暂停 + 对账)
+    +-- LockGuard (悬浮窗 + watchdog 轮询 + 状态恢复)
+    +-- LockOverlayManager (悬浮窗创建/移除/点击拦截)
+```
+
+- 用 `Messenger` 或 `LiveData` 通信
+- 保持对外接口不变（`ACTION_UNLOCK` 等）
+
+### T9 — 架构扩展性优化（2 天）
+
+```java
+interface BankSource {
+    LoadResult load(String subject, int grade);
+    int priority();
+}
+
+// 组合：CustomSource(0) -> AssetSource(1) -> AdjacentGradeSource(2) -> BuiltinSource(3)
+```
+
+- `BankRepository` 改为遍历 `List<BankSource>`
+- 新增数据源（如远程题库）时无需改核心逻辑
+
+### T10 — 设备管理员 / Keyguard 增强（可选，2-3 天）
+
+- 检测 `DeviceAdmin` 是否可用，提供引导
+- `KeyguardManager` 作为额外锁屏层
+- 注意：Android 10+ DeviceAdmin 受限，需评估实际收益
+
+---
+
+## 四、长期演进（P3+，按需）
+
+> 目标：现代化 + 可维护性
+
+### T11 — Kotlin 迁移
+
+- 新代码用 Kotlin 写（T7 开始）
+- 旧代码逐步迁移：`QuestionEngine` -> `PrefManager` -> `LockService`
+- 引入 `kotlinx.coroutines` 替代 Handler 轮询
+
+### T12 — Jetpack Compose 预览界面
+
+- 预览界面用 Compose 重写（独立 Activity，风险低）
+- 锁屏界面保持原生（稳定性优先）
+
+### T13 — 远程题库（需后端）
+
+- `RemoteBankSource` 实现 `BankSource`
+- 家长可在线下载官方字表更新
+- 本地缓存 + 增量更新
+
+### T14 — 多孩子配置
+
+- 支持多个孩子档案（不同年级 / 科目 / 时长）
+- 家长切换当前孩子
+- 需改 `PrefManager` 存储结构（从单例 key 改为按孩子 ID）
+
+---
+
+## 五、工程化建设（贯穿全程）
+
+### CI/CD
+
+```yaml
+# .github/workflows/build.yml
+- push / pull_request 触发
+- 运行 ./gradlew assembleDebug --offline
+- 运行 ./gradlew testDebugUnitTest --offline
+- 运行 python verify_schedule.py
+- 全部通过才允许合并
+```
+
+### 代码质量
+
+- 开启 R8 混淆（`minifyEnabled true`）
+- 补充 `proguard-rules.pro` keep 规则
+- 引入 Checkstyle / Spotless 统一代码风格
+- PR 模板：改动描述 + 自测截图 + 影响范围
+
+### 监控
+
+- `CustomBankStore` 导入失败率（本地日志 + 可选上报）
+- 出题失败率（三级兜底触发次数）
+- 正确率分布（可选匿名统计）
+
+---
+
+## 六、风险与对策
+
+| 风险 | 概率 | 影响 | 对策 |
+|---|---|---|---|
+| R26 自定义题库恶意文件 | 中 | 中 | 大小限制 + 深度限制 + 原子写入 |
+| 拼音字表编校错误 | 中 | 低 | 人工抽验 + 构建校验 |
+| Kotlin 迁移引入回归 | 中 | 高 | 逐模块迁移 + 真机回归 |
+| `LockService` 拆分影响防绕过 | 低 | 高 | 拆分前后真机对比测试（MiTV4A + 荣耀平板） |
+| 厂商系统更新导致 API 失效 | 低 | 高 | 维护厂商兼容矩阵 + 灰度发布 |
+
+---
+
+## 七、里程碑
+
+| 里程碑 | 时间 | 交付物 |
+|---|---|---|
+| **M1：安全加固 + 测试覆盖** | 1-2 周 | T1-T5 完成，PIN 安全升级，核心逻辑有单测 |
+| **M2：功能增强** | 2-4 周 | T6-T7 完成，正确率统计 + 自定义题库上线 |
+| **M3：架构优化** | 4-6 周 | T8-T10 完成，Service 拆分 + 数据源链 |
+| **M4：现代化** | 按需 | T11-T14，Kotlin 迁移 + 远程题库 |
+
+---
+
+## 八、执行建议
+
+1. **优先做 M1**（T1-T5），补齐安全 + 测试短板，为后续迭代打基础
+2. **T7（自定义题库）是最大单项**，建议单独排期，不要和其他功能混在一起
+3. **T8（Service 拆分）风险高**，建议在 M2 完成后做，且有完整回归测试
+4. **Kotlin 迁移不要急**，等核心逻辑稳定后再开始，避免边迁移边改逻辑
+5. **每次发版前跑完整回归清单**：
+   - `verify_schedule.py` 45 场景全 PASS
+   - `assembleDebug --offline` 通过
+   - `testDebugUnitTest --offline` 通过
+   - 真机：低龄字表不超纲、预览不污染队列、正确率更新、导入/清除
+
+---
+
+**总结**：项目核心功能已完善，当前最优先的是 **安全加固（PIN）+ 测试覆盖**，其次是 **功能增强（正确率 + 自定义题库）**，最后是 **架构优化和现代化**。建议按 M1 -> M2 -> M3 节奏推进，不要跳步。

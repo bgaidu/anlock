@@ -1,0 +1,635 @@
+# KidsLock 项目完善清单计划
+
+## 📋 实施路线图概览
+
+```
+阶段一：安全加固（2-3天）
+  ↓
+阶段二：功能增强（3-4天）
+  ↓
+阶段三：体验优化（2-3天）
+  ↓
+阶段四：技术优化（2-3天）
+```
+
+---
+
+## 🎯 阶段一：安全加固（P0 级别）
+
+### 任务 1.1：PIN 存储安全升级
+**优先级**：P0 | **工作量**：0.5天 | **依赖**：无
+
+#### 具体步骤
+1. 修改 `PrefManager.java`：
+   ```java
+   // 新增方法
+   public static String generateRandomPin() {
+       SecureRandom random = new SecureRandom();
+       int pin = 1000 + random.nextInt(9000);  // 1000-9999
+       return String.valueOf(pin);
+   }
+   
+   // 修改默认值
+   private static final String DEFAULT_PARENT_PIN = "";  // 空表示未设置
+   ```
+
+2. 修改 `MainActivity.java`：
+   - 首次启动时显示PIN到屏幕（Toast或Dialog）
+   - PIN输入框改为 `android:inputType="numberPassword"`
+   - 输入时每位显示 `*` 遮罩
+
+3. 添加PIN重置功能（设置页）：
+   - "忘记PIN"按钮
+   - 通过安全问题验证（如：孩子出生日期）
+
+#### 验收标准
+- ✅ 默认PIN不再为"1234"
+- ✅ PIN输入时显示遮罩字符
+- ✅ 首次启动时必须设置PIN
+- ✅ PIN重置流程完整
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/PrefManager.java`
+- `app/src/main/java/com/kidslock/app/MainActivity.java`
+- `app/src/main/res/layout/activity_main.xml`
+
+---
+
+### 任务 1.2：题库完整性校验
+**优先级**：P0 | **工作量**：0.5天 | **依赖**：无
+
+#### 具体步骤
+1. 创建 `BankValidator.java`：
+   ```java
+   public class BankValidator {
+       public static ValidationResult validate(Context ctx, int grade) {
+           List<String> missing = new ArrayList<>();
+           for (String subject : Subject.ORDER) {
+               String path = getBankPath(subject, grade);
+               if (!isValidJson(ctx, path)) {
+                   missing.add(subject);
+               }
+           }
+           return new ValidationResult(missing);
+       }
+       
+       private static boolean isValidJson(Context ctx, String path) {
+           // 验证JSON格式和必需字段
+       }
+   }
+   ```
+
+2. 在 `QuestionEngine.create()` 中添加校验：
+   ```java
+   public static QuestionEngine create(Context ctx, PrefManager pref) {
+       // ... 现有代码
+       ValidationResult result = BankValidator.validate(ctx, grade);
+       if (!result.getMissing().isEmpty()) {
+           Log.e(TAG, "题库缺失: " + result.getMissing());
+           // 显示UI提示
+       }
+   }
+   ```
+
+3. 添加题库下载功能（可选）：
+   - 从GitHub releases下载缺失的题库
+   - 或提供"重置为默认题库"按钮
+
+#### 验收标准
+- ✅ 启动时检测题库完整性
+- ✅ 题库损坏时显示明确错误提示
+- ✅ 题库缺失时提供恢复选项
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/question/BankValidator.java`（新建）
+- `app/src/main/java/com/kidslock/app/question/QuestionEngine.java`
+- `app/src/main/res/layout/activity_main.xml`（添加错误提示UI）
+
+---
+
+### 任务 1.3：安全审计与日志
+**优先级**：P0 | **工作量**：0.5天 | **依赖**：1.1, 1.2
+
+#### 具体步骤
+1. 添加关键操作日志：
+   ```java
+   public class SecurityLogger {
+       public static void logPinAttempt(boolean success, String reason) {
+           Log.d(TAG, String.format("PIN尝试: %s, 原因: %s", 
+               success ? "成功" : "失败", reason));
+       }
+       
+       public static void logBypassAttempt(String method) {
+           Log.e(TAG, "检测到绕过尝试: " + method);
+           // 可选：上报到家长手机
+       }
+   }
+   ```
+
+2. 添加锁屏状态持久化：
+   - 确保重启后锁屏状态正确恢复
+   - 验证 `BootReceiver` 逻辑
+
+3. 安全测试：
+   - 测试改系统时间、杀后台、强停重启三种场景
+   - 确保无绕过路径
+
+#### 验收标准
+- ✅ 关键操作都有日志记录
+- ✅ 所有绕过尝试都被记录
+- ✅ 重启后锁屏状态100%恢复
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/SecurityLogger.java`（新建）
+- `app/src/main/java/com/kidslock/app/BootReceiver.java`
+- `app/src/test/java/com/kidslock/app/PrefManagerTest.java`（新建）
+
+---
+
+## 🚀 阶段二：功能增强（P1 级别）
+
+### 任务 2.1：解锁题数配置优化
+**优先级**：P1 | **工作量**：1天 | **依赖**：1.1, 1.2
+
+#### 具体步骤
+1. 在 `QuestionEngine` 中添加难度自适应：
+   ```java
+   public void adjustDifficultyBasedOnPerformance(int streak) {
+       if (streak >= 10) {
+           grade = Math.min(grade + 1, 6);
+           Log.i(TAG, "难度提升: " + grade);
+       }
+       if (streak <= 1 && grade > 0) {
+           grade = Math.max(grade - 1, 0);
+           Log.i(TAG, "难度降低: " + grade);
+       }
+   }
+   ```
+
+2. 添加题目类型混合功能：
+   ```java
+   public Question nextQuestion() {
+       // 混合策略：根据题数动态调整各科目比例
+       if (totalQuestions >= 10) {
+           // 60%拼音 + 40%数学
+       } else {
+           // 50%拼音 + 50%数学
+       }
+   }
+   ```
+
+3. 修改设置页UI：
+   - 解锁题数：3 / 5 / 7 / 10 / 15 / 20（增加选项）
+   - 显示当前难度级别
+
+#### 验收标准
+- ✅ 连续答对10题自动升级年级
+- ✅ 连续答错1题自动降级年级
+- ✅ 题目类型按比例混合
+- ✅ 设置页UI清晰展示难度
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/question/QuestionEngine.java`
+- `app/src/main/java/com/kidslock/app/MainActivity.java`
+- `app/src/main/res/layout/activity_main.xml`
+
+---
+
+### 任务 2.2：答题正确率统计
+**优先级**：P1 | **工作量**：1.5天 | **依赖**：2.1
+
+#### 具体步骤
+1. 创建 `StatsManager.java`：
+   ```java
+   public class StatsManager {
+       // 每科统计数据
+       private Map<String, SubjectStats> stats = new HashMap<>();
+       
+       // 更新正确率
+       public void recordAnswer(String subject, boolean correct) {
+           SubjectStats s = stats.computeIfAbsent(subject, k -> new SubjectStats());
+           s.totalAnswers++;
+           if (correct) s.correctAnswers++;
+       }
+       
+       // 获取正确率
+       public double getAccuracy(String subject) {
+           SubjectStats s = stats.get(subject);
+           return s == null ? 0 : (double) s.correctAnswers / s.totalAnswers;
+       }
+   }
+   ```
+
+2. 在 `LockScreenActivity` 中记录答题：
+   ```java
+   private StatsManager stats;
+   
+   public void onOptionClicked(int index, String option) {
+       boolean correct = currentQuestion.getAnswer() == index;
+       stats.recordAnswer(currentQuestion.getSubject(), correct);
+       
+       if (correct) {
+           correctCount++;
+           questionEngine.adjustDifficultyBasedOnPerformance(correctCount);
+       }
+   }
+   ```
+
+3. 创建统计界面：
+   - 使用 `RecyclerView` 展示数据
+   - 图表：使用 `MPAndroidChart` 库
+   - 时间范围：今日/本周/本月
+
+#### 验收标准
+- ✅ 每科正确率实时记录
+- ✅ 统计界面可按时间筛选
+- ✅ 图表清晰展示趋势
+- ✅ 数据持久化（重启后保留）
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/StatsManager.java`（新建）
+- `app/src/main/java/com/kidslock/app/StatsActivity.java`（新建）
+- `app/src/main/res/layout/activity_stats.xml`（新建）
+- `app/build.gradle`（添加MPAndroidChart依赖）
+
+---
+
+### 任务 2.3：家长控制面板
+**优先级**：P1 | **工作量**：2天 | **依赖**：2.2
+
+#### 具体步骤
+1. 扩展设置页功能：
+   ```java
+   public class SettingsActivity extends AppCompatActivity {
+       // 使用ViewPager2实现多Tab
+       private TabLayout tabLayout;
+       private ViewPager2 viewPager;
+       
+       // Tab 1: 基础设置（时长、PIN、解锁题数）
+       // Tab 2: 题目设置（年级、科目、难度）
+       // Tab 3: 使用统计（时长、正确率）
+       // Tab 4: 高级设置（自启、无障碍、通知）
+   }
+   ```
+
+2. 添加统计卡片：
+   - 今日观看时长
+   - 本周观看趋势
+   - 各科正确率对比
+   - 答错题目历史
+
+3. 添加快速锁定功能：
+   ```java
+   public void lockAllDevices() {
+       // 通过局域网广播发送锁定指令
+       Intent intent = new Intent("com.kidslock.LOCK_ALL");
+       sendBroadcast(intent);
+   }
+   ```
+
+#### 验收标准
+- ✅ 设置页支持多Tab切换
+- ✅ 统计数据准确
+- ✅ 快速锁定功能可用
+- ✅ UI布局清晰美观
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/SettingsActivity.java`（重构MainActivity）
+- `app/src/main/res/layout/activity_settings.xml`
+- `app/src/main/res/layout/view_statistics_card.xml`（新建）
+
+---
+
+## ✨ 阶段三：体验优化（P2 级别）
+
+### 任务 3.1：UI 动画效果
+**优先级**：P2 | **工作量**：1天 | **依赖**：2.3
+
+#### 具体步骤
+1. 答题动画：
+   ```xml
+   <!-- activity_lock_screen.xml -->
+   <ViewFlipper android:id="@+id/questionFlipper">
+       <FrameLayout>
+           <TextView android:animateChanges="true"/>
+           <Button android:animateLayoutChanges="true"/>
+       </FrameLayout>
+   </ViewFlipper>
+   ```
+
+2. 翻转效果：
+   ```java
+   public void showNextQuestion() {
+       ObjectAnimator animator = ObjectAnimator.ofFloat(
+           tvQuestion, "rotationY", 90, 0);
+       animator.setDuration(300);
+       animator.start();
+   }
+   ```
+
+3. PIN输入动画：
+   ```java
+   tvPinDisplay.append("*");
+   tvPinDisplay.setAlpha(0);
+   tvPinDisplay.animate().alpha(1).setDuration(100);
+   ```
+
+#### 验收标准
+- ✅ 答对时显示成功动画
+- ✅ 答错时显示错误动画
+- ✅ 题目切换有平滑过渡
+- ✅ PIN输入有视觉反馈
+
+#### 相关文件
+- `app/src/main/res/anim/`（新建动画文件）
+- `app/src/main/res/layout/activity_lock_screen.xml`
+- `app/src/main/java/com/kidslock/app/LockScreenActivity.java`
+
+---
+
+### 任务 3.2：题目预览功能
+**优先级**：P2 | **工作量**：0.5天 | **依赖**：2.1
+
+#### 具体步骤
+1. 在设置页添加"预览题目"按钮：
+   ```java
+   public void previewQuestion() {
+       Question q = questionEngine.nextQuestion();
+       showPreviewDialog(q);
+   }
+   ```
+
+2. 预览对话框：
+   ```java
+   private void showPreviewDialog(Question q) {
+       AlertDialog.Builder builder = new AlertDialog.Builder(this);
+       builder.setTitle("预览题目");
+       builder.setMessage(q.getQuestionText());
+       // 显示4个选项
+       builder.setPositiveButton("关闭", null);
+       builder.show();
+   }
+   ```
+
+#### 验收标准
+- ✅ 可预览当前难度题目
+- ✅ 显示题目类型和难度
+- ✅ 预览后不消耗答题次数
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/MainActivity.java`
+- `app/src/main/res/layout/dialog_preview.xml`（新建）
+
+---
+
+## 🔧 阶段四：技术优化（P3 级别）
+
+### 任务 4.1：单元测试覆盖
+**优先级**：P3 | **工作量**：2天 | **依赖**：1.1, 1.2
+
+#### 具体步骤
+1. 为核心类添加测试：
+   ```java
+   @Test
+   public void testPinHash() {
+       PrefManager pm = new PrefManager(context);
+       pm.setPin("1234");
+       assertTrue(pm.verifyPin("1234"));
+       assertFalse(pm.verifyPin("4321"));
+   }
+   
+   @Test
+   public void testTimerAccuracy() {
+       // 测试计时准确性
+   }
+   ```
+
+2. 添加集成测试：
+   - 测试完整解锁流程
+   - 测试重启恢复流程
+   - 测试防绕过机制
+
+#### 验收标准
+- ✅ 单元测试覆盖率 ≥ 60%
+- ✅ 所有核心功能有测试用例
+- ✅ 测试通过率 100%
+
+#### 相关文件
+- `app/src/test/java/com/kidslock/app/`（新建测试类）
+- `app/build.gradle`（配置测试依赖）
+
+---
+
+### 任务 4.2：性能优化
+**优先级**：P3 | **工作量**：1天 | **依赖**：4.1
+
+#### 具体步骤
+1. 题库加载异步化：
+   ```java
+   public class BankLoader {
+       private ExecutorService executor = Executors.newCachedThreadPool();
+       
+       public Future<QuestionEngine> loadAsync(Context ctx, PrefManager pref) {
+           return executor.submit(() -> QuestionEngine.create(ctx, pref));
+       }
+   }
+   ```
+
+2. 使用对象池：
+   ```java
+   public class QuestionPool {
+       private static final int POOL_SIZE = 10;
+       private Queue<Question> pool = new LinkedList<>();
+       
+       public Question acquire() {
+           return pool.poll() != null ? pool.poll() : new Question();
+       }
+       
+       public void release(Question q) {
+           pool.offer(q);
+       }
+   }
+   ```
+
+#### 验收标准
+- ✅ 启动时间减少 20%
+- ✅ 内存占用减少 15%
+- ✅ 题库加载不阻塞UI
+
+#### 相关文件
+- `app/src/main/java/com/kidslock/app/question/BankLoader.java`（新建）
+- `app/src/main/java/com/kidslock/app/question/QuestionPool.java`（新建）
+
+---
+
+### 任务 4.3：代码质量提升
+**优先级**：P3 | **工作量**：1天 | **依赖**：4.1
+
+#### 具体步骤
+1. 添加Lint检查：
+   ```gradle
+   android {
+       lint {
+           abortOnError false
+           checkAllWarnings true
+       }
+   }
+   ```
+
+2. 代码重构：
+   - 消除重复代码
+   - 提取常量
+   - 改进命名
+
+3. 添加JavaDoc：
+   ```java
+   /**
+    * 锁屏管理器，负责计时和锁屏状态控制
+    * @author KidsLock Team
+    */
+   public class LockScreenManager { ... }
+   ```
+
+#### 验收标准
+- ✅ Lint检查无警告
+- ✅ 代码重复率 < 5%
+- ✅ 所有公共类有JavaDoc
+
+#### 相关文件
+- `app/build.gradle`
+- `app/src/main/java/com/kidslock/app/`（重构代码）
+
+---
+
+## 📊 实施计划表
+
+| 任务编号 | 任务名称 | 优先级 | 预估时间 | 开始日期 | 完成日期 | 状态 |
+|---------|---------|--------|---------|---------|---------|------|
+| 1.1 | PIN存储安全升级 | P0 | 0.5天 | 2026-10-15 | 2026-10-15 | 📅 |
+| 1.2 | 题库完整性校验 | P0 | 0.5天 | 2026-10-15 | 2026-10-15 | 📅 |
+| 1.3 | 安全审计与日志 | P0 | 0.5天 | 2026-10-16 | 2026-10-16 | 📅 |
+| 2.1 | 解锁题数配置优化 | P1 | 1天 | 2026-10-17 | 2026-10-17 | 📅 |
+| 2.2 | 答题正确率统计 | P1 | 1.5天 | 2026-10-18 | 2026-10-19 | 📅 |
+| 2.3 | 家长控制面板 | P1 | 2天 | 2026-10-20 | 2026-10-21 | 📅 |
+| 3.1 | UI动画效果 | P2 | 1天 | 2026-10-22 | 2026-10-22 | 📅 |
+| 3.2 | 题目预览功能 | P2 | 0.5天 | 2026-10-23 | 2026-10-23 | 📅 |
+| 4.1 | 单元测试覆盖 | P3 | 2天 | 2026-10-24 | 2026-10-25 | 📅 |
+| 4.2 | 性能优化 | P3 | 1天 | 2026-10-26 | 2026-10-26 | 📅 |
+| 4.3 | 代码质量提升 | P3 | 1天 | 2026-10-27 | 2026-10-27 | 📅 |
+
+**总计**：约 **10个工作日**（2周）
+
+---
+
+## 🎯 里程碑
+
+### 里程碑 1：安全加固完成（Day 3）
+- ✅ PIN存储安全
+- ✅ 题库完整性校验
+- ✅ 安全审计通过
+
+### 里程碑 2：功能完善（Day 7）
+- ✅ 解锁题数优化
+- ✅ 答题统计功能
+- ✅ 家长控制面板
+
+### 里程碑 3：体验优化（Day 9）
+- ✅ UI动画效果
+- ✅ 题目预览功能
+
+### 里程碑 4：技术优化（Day 10）
+- ✅ 单元测试覆盖
+- ✅ 性能优化
+- ✅ 代码质量提升
+
+---
+
+## 📝 每日工作流
+
+```bash
+# Day 1: 安全加固
+- 1.1 PIN存储安全（3小时）
+- 1.2 题库校验（2小时）
+- 1.3 安全审计（3小时）
+
+# Day 2: 功能增强
+- 2.1 解锁题数优化（4小时）
+- 2.2 答题统计（6小时）
+
+# Day 3: 功能增强
+- 2.3 家长控制面板（8小时）
+
+# Day 4: 体验优化
+- 3.1 UI动画（4小时）
+- 3.2 预览功能（2小时）
+
+# Day 5-7: 单元测试（每天4小时）
+
+# Day 8-9: 性能优化（每天4小时）
+
+# Day 10: 代码质量（4小时）
+```
+
+---
+
+## 🚀 快速启动命令
+
+```bash
+# 1. 创建新分支
+git checkout -b feature/security-improvements
+
+# 2. 开始实施任务1.1
+vim app/src/main/java/com/kidslock/app/PrefManager.java
+
+# 3. 编译测试
+./gradlew assembleDebug
+
+# 4. 运行测试
+./gradlew test
+
+# 5. 提交代码
+git add .
+git commit -m "feat: PIN存储安全升级"
+
+# 6. 推送并创建PR
+git push origin feature/security-improvements
+```
+
+---
+
+## 📊 风险评估
+
+| 风险 | 概率 | 影响 | 应对措施 |
+|------|------|------|---------|
+| 题库校验逻辑复杂 | 中 | 中 | 提前编写单元测试验证 |
+| UI动画兼容性问题 | 低 | 低 | 使用标准API，充分测试 |
+| 统计数据持久化异常 | 低 | 中 | 添加异常捕获和降级方案 |
+| 性能优化效果不明显 | 中 | 低 | 使用Android Profiler分析 |
+
+---
+
+## 📈 成功标准
+
+### 功能完整性
+- ✅ 所有P0/P1任务完成
+- ✅ 无阻塞性Bug
+- ✅ 测试覆盖率 ≥ 60%
+
+### 代码质量
+- ✅ Lint检查无警告
+- ✅ 代码重复率 < 5%
+- ✅ 所有公共类有JavaDoc
+
+### 用户体验
+- ✅ 启动时间 < 3秒
+- ✅ 动画流畅（60fps）
+- ✅ 界面响应迅速
+
+### 安全性
+- ✅ 无已知漏洞
+- ✅ 防绕过机制有效
+- ✅ 数据加密存储
+
+---
+
+需要我开始实施哪个任务？或者你想调整优先级？
