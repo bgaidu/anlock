@@ -217,6 +217,15 @@ class LockScreenActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnPin1).post { findViewById<View>(R.id.btnPin1).requestFocus() }
     }
 
+    /**
+     * TV 遥控器支持：打开锁屏时自动聚焦第一个选项按钮
+     */
+    private fun focusUnlockButton() {
+        findViewById<View>(R.id.btnOption1).post {
+            findViewById<View>(R.id.btnOption1).requestFocus()
+        }
+    }
+
     private fun onPinDigit(digit: Int) {
         if (pinInput.length < 4) {
             pinInput.append(digit)
@@ -279,6 +288,7 @@ class LockScreenActivity : AppCompatActivity() {
         resumed = true
         foregroundInstance = this
         hideSystemUI()
+        focusUnlockButton()
 
         window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
             if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
