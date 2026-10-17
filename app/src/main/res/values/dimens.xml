@@ -12,7 +12,7 @@
     <dimen name="text_pin">28sp</dimen>
 
     <!-- 锁屏汉字特大（原 180sp 在 1080p 电视上会把底部控件挤出屏幕） -->
-    <dimen name="text_hanzi">130sp</dimen>
+    <dimen name="text_hanzi">75sp</dimen>
     <!-- 数学算式 / 英语单词档（56sp） -->
     <dimen name="text_stem">56sp</dimen>
 

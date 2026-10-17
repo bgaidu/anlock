@@ -169,6 +169,7 @@ class LockScreenActivity : AppCompatActivity() {
 
         if (index == currentQuestion.correctIndex) {
             correctCount++
+            updateProgress()
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
             tvFeedback.text = "答对了！"
             tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.correct_green))
@@ -181,6 +182,7 @@ class LockScreenActivity : AppCompatActivity() {
             }
         } else {
             correctCount = 0
+            updateProgress()
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
             for (i in currentOptions.indices) {
                 if (i == currentQuestion.correctIndex) {
@@ -196,7 +198,12 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun updateProgress() {
-        tvProgress.text = String.format("已答对 %d/%d 道题即可解锁", correctCount, requiredCount)
+        val remaining = (requiredCount - correctCount).coerceAtLeast(0)
+        tvProgress.text = if (remaining == 0) {
+            String.format("已答对 %d/%d 道题，即将解锁…", correctCount, requiredCount)
+        } else {
+            String.format("已答对 %d 题，还剩 %d 题即可解锁", correctCount, remaining)
+        }
     }
 
     private fun unlock() {

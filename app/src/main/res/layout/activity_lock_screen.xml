@@ -8,7 +8,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true"
-        android:scrollbars="none">
+        android:scrollbars="none"
+        android:paddingBottom="120dp">
 
         <LinearLayout
             android:id="@+id/layoutMain"
@@ -16,7 +17,9 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="@dimen/tv_margin_h">
+            android:padding="@dimen/tv_margin_h"
+            android:paddingTop="@dimen/spacing_small"
+            android:paddingBottom="@dimen/spacing_medium">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -27,6 +30,15 @@
                 android:textStyle="bold"
                 android:layout_marginBottom="@dimen/spacing_small" />
 
+            <!-- 答题进度：放在标题下方，电视上始终可见 -->
+            <TextView
+                android:id="@+id/tvProgress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="@dimen/text_body"
+                android:layout_marginBottom="@dimen/spacing_medium" />
+
             <TextView
                 android:id="@+id/tvCharacter"
                 android:layout_width="wrap_content"
@@ -34,7 +46,7 @@
                 android:textColor="@color/text_primary"
                 android:textSize="@dimen/text_hanzi"
                 android:textStyle="bold"
-                android:layout_marginTop="@dimen/spacing_medium"
+                android:layout_marginTop="@dimen/spacing_small"
                 android:layout_marginBottom="@dimen/spacing_medium" />
 
             <TextView
@@ -111,6 +123,7 @@
                     android:textColor="@color/btn_text"
                     android:textSize="@dimen/text_button"
                     android:focusable="true"
+                    android:focusableInTouchMode="true"
                     android:clickable="true"
                     android:nextFocusLeft="@id/btnOption4"
                     android:nextFocusRight="@id/btnOption1"
@@ -127,6 +140,7 @@
                     android:textColor="@color/btn_text"
                     android:textSize="@dimen/text_button"
                     android:focusable="true"
+                    android:focusableInTouchMode="true"
                     android:clickable="true"
                     android:nextFocusLeft="@id/btnOption3"
                     android:nextFocusRight="@id/btnOption2"
@@ -143,35 +157,29 @@
                 android:layout_marginTop="@dimen/spacing_medium"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/tvProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_body"
-                android:layout_marginTop="@dimen/spacing_small" />
-
-            <Button
-                android:id="@+id/btnParentUnlock"
-                style="@style/Widget.AppCompat.Button.Borderless"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/parent_unlock"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_body"
-                android:background="@drawable/btn_settings_bg"
-                android:paddingStart="@dimen/spacing_medium"
-                android:paddingEnd="@dimen/spacing_medium"
-                android:layout_marginTop="@dimen/spacing_large"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:clickable="true"
-                android:nextFocusUp="@id/btnOption3"
-                android:nextFocusDown="@id/btnOption1" />
-
         </LinearLayout>
 
     </ScrollView>
+
+    <!-- 家长解锁按钮固定在底部 -->
+    <Button
+        android:id="@+id/btnParentUnlock"
+        style="@style/Widget.AppCompat.Button.Borderless"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="@dimen/spacing_large"
+        android:text="@string/parent_unlock"
+        android:textColor="@color/text_secondary"
+        android:textSize="@dimen/text_body"
+        android:background="@drawable/btn_settings_bg"
+        android:paddingStart="@dimen/spacing_medium"
+        android:paddingEnd="@dimen/spacing_medium"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:clickable="true"
+        android:nextFocusUp="@id/btnOption3"
+        android:nextFocusDown="@id/btnOption1" />
 
     <include
         android:id="@+id/layoutPin"

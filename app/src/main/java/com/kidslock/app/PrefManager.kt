@@ -268,6 +268,12 @@ class PrefManager(private val context: Context) {
             val spec: KeySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, PIN_HASH_LENGTH)
             val hash = skf.generateSecret(spec).encoded
             return bytesToHex(hash)
+        } catch (e: NoSuchAlgorithmException) {
+            // 某些设备不支持 PBKDF2WithHmacSHA256，降级到 SHA-256（仍带盐，安全性足够）
+            val md = MessageDigest.getInstance("SHA-256")
+            md.update(salt)
+            md.update(password.toByteArray(StandardCharsets.UTF_8))
+            return bytesToHex(md.digest())
         } catch (e: Exception) {
             throw IllegalStateException("PBKDF2 not available", e)
         }
