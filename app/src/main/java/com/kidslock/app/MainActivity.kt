@@ -139,6 +139,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun initViews() {
         tvStatus = findViewById(R.id.tvStatus)
+        // 显示当前版本号，方便确认设备上装的是哪个版本
+        findViewById<TextView>(R.id.tvVersion).text = try {
+            "版本 v" + packageManager.getPackageInfo(packageName, 0).versionName
+        } catch (e: Exception) { "" }
         tvRemaining = findViewById(R.id.tvRemaining)
         btnAutoStart = findViewById(R.id.btnAutoStart)
         tvWatchTime = findViewById(R.id.tvWatchTime)
