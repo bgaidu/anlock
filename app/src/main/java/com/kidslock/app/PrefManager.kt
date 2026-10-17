@@ -316,6 +316,25 @@ class PrefManager(private val context: Context) {
         prefs.edit().putInt(KEY_PIN_FAIL_COUNT, 0).putLong(KEY_PIN_LOCK_UNTIL, 0).apply()
     }
 
+    // --- 快速重启检测（紧急解锁用） ---
+    fun getLastBootTime(): Long = prefs.getLong("last_boot_time", 0)
+
+    fun setLastBootTime(time: Long) {
+        prefs.edit().putLong("last_boot_time", time).apply()
+    }
+
+    fun getRebootCount(): Int = prefs.getInt("reboot_count", 0)
+
+    fun setRebootCount(count: Int) {
+        prefs.edit().putInt("reboot_count", count).apply()
+    }
+
+    fun getLastLockTime(): Long = prefs.getLong("last_lock_time", 0)
+
+    fun setLastLockTime(time: Long) {
+        prefs.edit().putLong("last_lock_time", time).apply()
+    }
+
     var grade: Int = DEFAULT_QUESTION_GRADE
         get() {
             val g = prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE)

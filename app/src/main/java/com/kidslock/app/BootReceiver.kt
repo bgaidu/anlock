@@ -9,6 +9,9 @@ import android.util.Log
 class BootReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "BootReceiver"
+        private const val EMERGENCY_WINDOW_MS = 5 * 60 * 1000L
+        private const val FAST_REBOOT_THRESHOLD_MS = 3 * 60 * 1000L
+        private const val FAST_REBOOT_COUNT_THRESHOLD = 3
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -26,6 +29,48 @@ class BootReceiver : BroadcastReceiver() {
         pref.deductOfflineIfAny()
 
         if (pref.isLocked()) {
+            // 紧急解锁模式 1：检测紧急文件
+            val emergencyFile = java.io.File("/sdcard/kidslock_emergency_unlock")
+            if (emergencyFile.exists()) {
+                Log.i(TAG, "Emergency unlock triggered, skipping lock screen")
+                pref.setLocked(false)
+                pref.setHomeAliasEnabled(context, false)
+                pref.stopTimer()
+                emergencyFile.delete()
+                return
+            }
+
+            // 紧急解锁模式 2：检测快速重启（3 分钟内连续重启 3 次）
+            val bootTime = System.currentTimeMillis()
+            val lastBootTime = pref.getLastBootTime()
+            val rebootCount = pref.getRebootCount()
+            if (lastBootTime > 0 && bootTime - lastBootTime < FAST_REBOOT_THRESHOLD_MS) {
+                val newCount = rebootCount + 1
+                pref.setRebootCount(newCount)
+                pref.setLastBootTime(bootTime)
+                if (newCount >= FAST_REBOOT_COUNT_THRESHOLD) {
+                    Log.i(TAG, "Fast reboot detected ($newCount times), skipping lock screen")
+                    pref.setLocked(false)
+                    pref.setHomeAliasEnabled(context, false)
+                    pref.stopTimer()
+                    pref.setRebootCount(0)
+                    return
+                }
+            } else {
+                pref.setRebootCount(1)
+                pref.setLastBootTime(bootTime)
+            }
+
+            // 紧急模式：开机后 5 分钟内不恢复锁屏
+            val lastLockTime = pref.getLastLockTime()
+            if (lastLockTime > 0 && bootTime - lastLockTime > EMERGENCY_WINDOW_MS) {
+                Log.i(TAG, "Emergency window active, skipping lock screen for 5 minutes")
+                pref.setLocked(false)
+                pref.setHomeAliasEnabled(context, false)
+                pref.stopTimer()
+                return
+            }
+
             Log.i(TAG, "Device was locked, showing lock screen")
             pref.setHomeAliasEnabled(context, true)
             startLockService(context)
