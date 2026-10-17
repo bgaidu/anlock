@@ -10,6 +10,8 @@
     <string name="screen_locked">屏幕已锁定</string>
     <string name="what_pronounce">这个字读什么？</string>
     <string name="parent_unlock">家长解锁</string>
+    <!-- 进度提示与家长解锁之间的间隔：8 个空格 -->
+    <string name="gap_spaces">"        "</string>
 
     <!-- PIN -->
     <string name="enter_pin">请输入家长PIN码</string>

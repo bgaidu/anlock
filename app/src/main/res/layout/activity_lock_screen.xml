@@ -28,15 +28,6 @@
                 android:textColor="@color/accent"
                 android:textSize="@dimen/text_title"
                 android:textStyle="bold"
-                android:layout_marginBottom="@dimen/spacing_small" />
-
-            <!-- 答题进度：放在标题下方，电视上始终可见 -->
-            <TextView
-                android:id="@+id/tvProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="@dimen/text_body"
                 android:layout_marginBottom="@dimen/spacing_medium" />
 
             <TextView
@@ -161,25 +152,47 @@
 
     </ScrollView>
 
-    <!-- 家长解锁按钮固定在底部 -->
-    <Button
-        android:id="@+id/btnParentUnlock"
-        style="@style/Widget.AppCompat.Button.Borderless"
+    <!-- 底部固定区：答题进度提示 + 8 空格间隔 + 家长解锁（字号缩小一半） -->
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="@dimen/spacing_large"
-        android:text="@string/parent_unlock"
-        android:textColor="@color/text_secondary"
-        android:textSize="@dimen/text_body"
-        android:background="@drawable/btn_settings_bg"
-        android:paddingStart="@dimen/spacing_medium"
-        android:paddingEnd="@dimen/spacing_medium"
-        android:focusable="true"
-        android:focusableInTouchMode="true"
-        android:clickable="true"
-        android:nextFocusUp="@id/btnOption3"
-        android:nextFocusDown="@id/btnOption1" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="@dimen/spacing_medium">
+
+        <TextView
+            android:id="@+id/tvProgress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/gap_spaces"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body" />
+
+        <Button
+            android:id="@+id/btnParentUnlock"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/parent_unlock"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_tiny"
+            android:background="@drawable/btn_settings_bg"
+            android:paddingStart="@dimen/spacing_medium"
+            android:paddingEnd="@dimen/spacing_medium"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="true"
+            android:nextFocusUp="@id/btnOption3"
+            android:nextFocusDown="@id/btnOption1" />
+
+    </LinearLayout>
 
     <include
         android:id="@+id/layoutPin"

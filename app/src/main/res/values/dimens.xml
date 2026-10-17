@@ -9,6 +9,8 @@
     <dimen name="text_subtitle">24sp</dimen>
     <dimen name="text_body">20sp</dimen>
     <dimen name="text_button">22sp</dimen>
+    <!-- 家长解锁按钮缩小档（text_body 的一半） -->
+    <dimen name="text_tiny">10sp</dimen>
     <dimen name="text_pin">28sp</dimen>
 
     <!-- 锁屏汉字特大（原 180sp 在 1080p 电视上会把底部控件挤出屏幕） -->
