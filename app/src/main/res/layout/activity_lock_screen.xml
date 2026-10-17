@@ -7,7 +7,6 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fillViewport="true"
         android:scrollbars="none"
         android:paddingBottom="120dp">
 
@@ -51,7 +50,7 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="@dimen/btn_height"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:layout_marginLeft="@dimen/tv_margin_h"
@@ -61,7 +60,7 @@
                     android:id="@+id/btnOption1"
                     style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="0dp"
-                    android:layout_height="@dimen/btn_height"
+                    android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:layout_margin="@dimen/btn_margin"
                     android:background="@drawable/btn_option_bg"
@@ -79,7 +78,7 @@
                     android:id="@+id/btnOption2"
                     style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="0dp"
-                    android:layout_height="@dimen/btn_height"
+                    android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:layout_margin="@dimen/btn_margin"
                     android:background="@drawable/btn_option_bg"
@@ -97,7 +96,7 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="@dimen/btn_height"
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:layout_marginLeft="@dimen/tv_margin_h"
@@ -107,7 +106,7 @@
                     android:id="@+id/btnOption3"
                     style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="0dp"
-                    android:layout_height="@dimen/btn_height"
+                    android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:layout_margin="@dimen/btn_margin"
                     android:background="@drawable/btn_option_bg"
@@ -124,7 +123,7 @@
                     android:id="@+id/btnOption4"
                     style="@style/Widget.AppCompat.Button.Borderless"
                     android:layout_width="0dp"
-                    android:layout_height="@dimen/btn_height"
+                    android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:layout_margin="@dimen/btn_margin"
                     android:background="@drawable/btn_option_bg"
