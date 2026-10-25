@@ -23,8 +23,8 @@ android {
         applicationId "com.kidslock.app"
         minSdk 21
         targetSdk 33
-        versionCode 8
-        versionName "1.0.1.5"
+        versionCode 9
+        versionName "1.0.1.6"
     }
 
     signingConfigs {
@@ -73,7 +73,6 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.google.android.material:material:1.11.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
 
     // R23 干扰项质量单测（test-only，不进 APK）
     // 离线环境无法从 Maven 拉取 junit，临时以 gradle 发行包内自带的同版本 jar 直接引用；

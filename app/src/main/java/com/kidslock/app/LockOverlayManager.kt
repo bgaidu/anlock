@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
-import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -21,12 +20,9 @@ class LockOverlayManager(
 ) {
     companion object {
         private const val TAG = "LockService"
-        @Volatile
-        private var overlayHoldUntil: Long = 0
 
         @JvmStatic
         fun holdOverlay(context: Context) {
-            overlayHoldUntil = SystemClock.elapsedRealtime() + 5000
             val s = LockService.runningInstance
             if (s != null) {
                 s.showOverlayIfPermitted()
@@ -43,9 +39,6 @@ class LockOverlayManager(
                 Log.e(TAG, "holdOverlay start service failed", e)
             }
         }
-
-        @JvmStatic
-        fun getOverlayHoldUntil(): Long = overlayHoldUntil
     }
 
     interface OverlayCallback {
@@ -71,8 +64,7 @@ class LockOverlayManager(
                 else
                     WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_DIM_BEHIND or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 PixelFormat.TRANSLUCENT
             )
             params.gravity = Gravity.TOP or Gravity.START
@@ -93,8 +85,6 @@ class LockOverlayManager(
             overlayView = null
         }
     }
-
-    fun isOverlayShown(): Boolean = overlayView != null
 
     private fun canDrawOverlays(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)

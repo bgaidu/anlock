@@ -52,6 +52,7 @@ class PrefManager(private val context: Context) {
         private val SUBJECT_ORDER = arrayOf("pinyin", "math", "english", "ciyu")
         private const val KEY_STAT_CORRECT = "stat_correct"
         private const val KEY_STAT_TOTAL = "stat_total"
+        private const val KEY_LEGACY_MIGRATED = "legacy_defaults_migrated"
     }
 
     private val appContext: Context = context.applicationContext
@@ -335,12 +336,6 @@ class PrefManager(private val context: Context) {
         prefs.edit().putInt("reboot_count", count).apply()
     }
 
-    fun getLastLockTime(): Long = prefs.getLong("last_lock_time", 0)
-
-    fun setLastLockTime(time: Long) {
-        prefs.edit().putLong("last_lock_time", time).apply()
-    }
-
     var grade: Int = DEFAULT_QUESTION_GRADE
         get() {
             val g = prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE)
@@ -411,6 +406,9 @@ class PrefManager(private val context: Context) {
     }
 
     private fun migrateLegacyDefaults() {
+        // 一次性迁移旧版存储默认值，必须有标志位：init 在每次构造 PrefManager 时都会执行，
+        // 无标志则会把新版用户主动选的「五年级」/「只开拼音」静默重置回新默认
+        if (prefs.getBoolean(KEY_LEGACY_MIGRATED, false)) return
         if (prefs.contains(KEY_QUESTION_GRADE) && prefs.getInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE) == 5) {
             prefs.edit().putInt(KEY_QUESTION_GRADE, DEFAULT_QUESTION_GRADE).apply()
         }
@@ -420,6 +418,7 @@ class PrefManager(private val context: Context) {
         if (prefs.contains(KEY_UNLOCK_COUNT) && prefs.getInt(KEY_UNLOCK_COUNT, DEFAULT_UNLOCK_COUNT) == 3) {
             prefs.edit().putInt(KEY_UNLOCK_COUNT, DEFAULT_UNLOCK_COUNT).apply()
         }
+        prefs.edit().putBoolean(KEY_LEGACY_MIGRATED, true).apply()
     }
 
     fun setHomeAliasEnabled(context: Context, enabled: Boolean) {

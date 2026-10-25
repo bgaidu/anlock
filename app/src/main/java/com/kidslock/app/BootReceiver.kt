@@ -9,7 +9,6 @@ import android.util.Log
 class BootReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "BootReceiver"
-        private const val EMERGENCY_WINDOW_MS = 5 * 60 * 1000L
         private const val FAST_REBOOT_THRESHOLD_MS = 3 * 60 * 1000L
         private const val FAST_REBOOT_COUNT_THRESHOLD = 3
     }
@@ -59,16 +58,6 @@ class BootReceiver : BroadcastReceiver() {
             } else {
                 pref.setRebootCount(1)
                 pref.setLastBootTime(bootTime)
-            }
-
-            // 紧急模式：开机后 5 分钟内不恢复锁屏
-            val lastLockTime = pref.getLastLockTime()
-            if (lastLockTime > 0 && bootTime - lastLockTime > EMERGENCY_WINDOW_MS) {
-                Log.i(TAG, "Emergency window active, skipping lock screen for 5 minutes")
-                pref.setLocked(false)
-                pref.setHomeAliasEnabled(context, false)
-                pref.stopTimer()
-                return
             }
 
             Log.i(TAG, "Device was locked, showing lock screen")
