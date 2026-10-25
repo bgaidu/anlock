@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvRemaining: TextView
     private lateinit var btnAutoStart: Button
+    private lateinit var btnEmergencyReboot: Button
     private lateinit var tvWatchTime: TextView
     private lateinit var tvUnlockCount: TextView
     private lateinit var btnGuardStatus: Button
@@ -145,6 +146,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) { "" }
         tvRemaining = findViewById(R.id.tvRemaining)
         btnAutoStart = findViewById(R.id.btnAutoStart)
+        btnEmergencyReboot = findViewById(R.id.btnEmergencyReboot)
         tvWatchTime = findViewById(R.id.tvWatchTime)
         tvUnlockCount = findViewById(R.id.tvUnlockCount)
         btnGuardStatus = findViewById(R.id.btnGuardStatus)
@@ -274,6 +276,28 @@ class MainActivity : AppCompatActivity() {
             pref.setAutoStart(newVal)
             updateStatus()
             toast(if (newVal) "已开启开机自启" else "已关闭开机自启")
+        }
+
+        btnEmergencyReboot.setOnClickListener {
+            if (pref.isEmergencyRebootUnlock()) {
+                pref.setEmergencyRebootUnlock(false)
+                updateStatus()
+                toast("已关闭紧急重启解锁")
+                return@setOnClickListener
+            }
+            AlertDialog.Builder(this)
+                .setTitle("开启紧急重启解锁？")
+                .setMessage(
+                    "开启后：锁屏状态下 3 分钟内连续重启 3 次设备即解锁。\n\n" +
+                            "孩子若学会此技巧可绕过锁屏。忘记 PIN 建议改用 adb 紧急文件（见 README「紧急解锁」）。"
+                )
+                .setPositiveButton("开启") { _, _ ->
+                    pref.setEmergencyRebootUnlock(true)
+                    updateStatus()
+                    toast("已开启紧急重启解锁")
+                }
+                .setNegativeButton("取消", null)
+                .show()
         }
 
         val timeButtons = intArrayOf(R.id.btnTime15, R.id.btnTime30, R.id.btnTime45, R.id.btnTime60, R.id.btnTime90, R.id.btnTime120)
@@ -430,6 +454,8 @@ class MainActivity : AppCompatActivity() {
             "守护服务：已开启" else "守护服务：未开启，点击开启"
 
         btnAutoStart.text = if (pref.isAutoStart()) "开机自启：已开启" else "开机自启：已关闭"
+        btnEmergencyReboot.text =
+            if (pref.isEmergencyRebootUnlock()) "紧急重启解锁：已开启" else "紧急重启解锁：已关闭"
         tvWatchTime.text = "观看时长：${pref.getWatchLimitMinutes()} 分钟"
         tvUnlockCount.text = "解锁题数：${pref.unlockCount} 道连续答对"
 

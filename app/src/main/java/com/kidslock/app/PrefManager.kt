@@ -53,6 +53,7 @@ class PrefManager(private val context: Context) {
         private const val KEY_STAT_CORRECT = "stat_correct"
         private const val KEY_STAT_TOTAL = "stat_total"
         private const val KEY_LEGACY_MIGRATED = "legacy_defaults_migrated"
+        private const val KEY_EMERGENCY_REBOOT_UNLOCK = "emergency_reboot_unlock"
     }
 
     private val appContext: Context = context.applicationContext
@@ -81,6 +82,14 @@ class PrefManager(private val context: Context) {
 
     fun setAutoStart(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+    }
+
+    // 紧急重启解锁（3 分钟内连续重启 3 次即解锁）：默认关闭——孩子仅凭电源键即可触发，
+    // 忘记 PIN 应优先走 adb 紧急文件（见 README「紧急解锁」），由家长自行权衡后开启
+    fun isEmergencyRebootUnlock(): Boolean = prefs.getBoolean(KEY_EMERGENCY_REBOOT_UNLOCK, false)
+
+    fun setEmergencyRebootUnlock(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_EMERGENCY_REBOOT_UNLOCK, enabled).apply()
     }
 
     fun getWatchLimitMinutes(): Int = prefs.getInt(KEY_WATCH_LIMIT_MIN, DEFAULT_WATCH_LIMIT_MIN)

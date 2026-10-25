@@ -28,18 +28,22 @@ class BootReceiver : BroadcastReceiver() {
         pref.deductOfflineIfAny()
 
         if (pref.isLocked()) {
-            // 紧急解锁模式 1：检测紧急文件
-            val emergencyFile = java.io.File("/sdcard/kidslock_emergency_unlock")
-            if (emergencyFile.exists()) {
-                Log.i(TAG, "Emergency unlock triggered, skipping lock screen")
-                pref.setLocked(false)
-                pref.setHomeAliasEnabled(context, false)
-                pref.stopTimer()
-                emergencyFile.delete()
-                return
+            // 紧急解锁模式 1：紧急文件（adb 或老设备文件管理器写入应用外部私有目录，
+            // 应用自身免存储权限即可读取；见 README「紧急解锁」）
+            val emergencyDir = context.getExternalFilesDir(null)
+            if (emergencyDir != null) {
+                val emergencyFile = java.io.File(emergencyDir, "kidslock_emergency_unlock")
+                if (emergencyFile.exists()) {
+                    Log.i(TAG, "Emergency unlock triggered, skipping lock screen")
+                    pref.setLocked(false)
+                    pref.setHomeAliasEnabled(context, false)
+                    pref.stopTimer()
+                    emergencyFile.delete()
+                    return
+                }
             }
 
-            // 紧急解锁模式 2：检测快速重启（3 分钟内连续重启 3 次）
+            // 紧急解锁模式 2：快速重启（3 分钟内连续重启 3 次），受设置页开关控制（默认关闭）
             val bootTime = System.currentTimeMillis()
             val lastBootTime = pref.getLastBootTime()
             val rebootCount = pref.getRebootCount()
@@ -48,12 +52,14 @@ class BootReceiver : BroadcastReceiver() {
                 pref.setRebootCount(newCount)
                 pref.setLastBootTime(bootTime)
                 if (newCount >= FAST_REBOOT_COUNT_THRESHOLD) {
-                    Log.i(TAG, "Fast reboot detected ($newCount times), skipping lock screen")
-                    pref.setLocked(false)
-                    pref.setHomeAliasEnabled(context, false)
-                    pref.stopTimer()
                     pref.setRebootCount(0)
-                    return
+                    if (pref.isEmergencyRebootUnlock()) {
+                        Log.i(TAG, "Fast reboot detected ($newCount times), skipping lock screen")
+                        pref.setLocked(false)
+                        pref.setHomeAliasEnabled(context, false)
+                        pref.stopTimer()
+                        return
+                    }
                 }
             } else {
                 pref.setRebootCount(1)

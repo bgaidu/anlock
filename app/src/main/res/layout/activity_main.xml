@@ -138,6 +138,19 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 紧急重启解锁（默认关闭；开启后 3 分钟内重启 3 次即解锁，孩子可借此绕过） -->
+        <Button
+            android:id="@+id/btnEmergencyReboot"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 观看时长 -->
         <TextView
             android:id="@+id/tvWatchTime"
