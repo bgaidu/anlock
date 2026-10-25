@@ -91,22 +91,22 @@ kidslock/
 ├── app/src/main/
 │   ├── AndroidManifest.xml          # 清单文件
 │   ├── java/com/kidslock/app/
-│   │   ├── MainActivity.java        # 设置界面
-│   │   ├── LockScreenActivity.java  # 锁屏答题界面
-│   │   ├── LockService.java         # 计时前台服务 + 悬浮窗 + 守护
-│   │   ├── BootReceiver.java        # 开机自启接收器
-│   │   ├── PrefManager.java         # 持久化状态管理 + 计时对账 + PIN哈希
+│   │   ├── MainActivity.kt          # 设置界面（PIN 门禁 + 出题/题库/计时设置）
+│   │   ├── LockScreenActivity.kt    # 锁屏答题界面
+│   │   ├── LockService.kt           # 计时前台服务 + 悬浮窗 + 守护
+│   │   ├── BootReceiver.kt          # 开机自启接收器
+│   │   ├── PrefManager.kt           # 持久化状态管理 + 计时对账 + PIN哈希
 │   │   └── question/                # 出题层（多科目分级题库）
-│   │       ├── Subject.java         # 科目常量：pinyin/math/english/ciyu
-│   │       ├── Grade.java           # 年级编码 0~6
-│   │       ├── QuestionEngine.java  # 出题引擎（永不返回 null）
-│   │       ├── BankProvider.java    # 题库型 provider 抽象基类
-│   │       ├── PinyinProvider.java  # 拼音（看汉字选读音）
-│   │       ├── EnglishProvider.java # 英语（看词选义 + 看义选词混合）
-│   │       ├── CituProvider.java    # 语文（看词语/成语选拼音，仅正向）
-│   │       ├── MathProvider.java    # 数学（算式题）
-│   │       ├── BankRepository.java  # assets 读取 + 三级兜底 + 缓存
-│   │       └── BuiltinPinyinBank.java # 内置 144 条兜底字表
+│   │       ├── Subject.kt           # 科目常量：pinyin/math/english/ciyu
+│   │       ├── Grade.kt             # 年级编码 0~6
+│   │       ├── QuestionEngine.kt    # 出题引擎（永不返回 null）
+│   │       ├── BankProvider.kt      # 题库型 provider 抽象基类
+│   │       ├── PinyinProvider.kt    # 拼音（看汉字选读音）
+│   │       ├── EnglishProvider.kt   # 英语（看词选义 + 看义选词混合）
+│   │       ├── CituProvider.kt      # 语文（看词语/成语选拼音，仅正向）
+│   │       ├── MathProvider.kt      # 数学（算式题，MathSpec 生成）
+│   │       ├── BankRepository.kt    # 自定义/assets/内置 三级兜底 + 缓存
+│   │       └── BuiltinPinyinBank.kt # 内置 144 条兜底字表
 │   └── res/
 │       ├── layout/                   # 布局XML
 │       ├── drawable/                 # 按钮背景、图标、TV banner
@@ -120,7 +120,7 @@ kidslock/
 - 最低支持：Android 5.0 (API 21)
 - 目标版本：Android 13 (API 33)
 - 编译版本：API 34
-- 架构：纯 Java，无 native 依赖，电视/平板通用
+- 架构：纯 Kotlin（已从 Java 全量迁移），无 native 依赖，电视/平板通用
 - 界面：遥控器焦点操作 + 触屏点击均可，锁屏固定横屏
 
 ## 编译方法
@@ -204,6 +204,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 5. **PIN 存储损坏可导致永久锁死**（2026-09-30）：`sha256Hex()` 原实现 `catch (Exception) { return ""; }`——一旦哈希异常，空串被当成"已设置的 PIN"写入，之后任何输入都校验失败，孩子只能恢复出厂。现改为 `NoSuchAlgorithmException` 显式抛出（SHA-256 在 Android 上不会失败，但异常不该变成静默锁死）；`verifyPin()` 增加格式判定分支，长度非 64 且非 4 位数字的值视为"存储已损坏"直接拒绝匹配；`isPinUsable()` 供设置页判断能否走"重新设置PIN"恢复。
 6. **设置页"立即解锁"按钮无 PIN 校验**（2026-09-30）：`MainActivity` 的解锁按钮直接 `setLocked(false)`。`onCreate` 的重定向挡住了锁屏状态下的进入，但边界情况可绕过——MainActivity 已打开期间若计时到期（`LockService.triggerLock()` 把 `isLocked` 置真），此时按一次"立即解锁"即完成绕过。已删除该按钮（解锁只应发生在锁屏界面，走认字或 PIN 两条路径）。
 7. **`StandardCharsets.UTF_8` 拼写错误导致编译失败**（2026-09-30）：`sha256Hex()` 里 `StandardCharsets.UTF-8`（连字符）被 Java 解析为 `UTF` 减 `8`，编译报"找不到符号"。Java 常量名用下划线：`UTF_8`。已在 commit `b05b06c` 修正。
+8. **旧默认值迁移反复执行，用户设置被静默重置**（2026-10-25）：`migrateLegacyDefaults()` 缺少一次性标志，每次构造 `PrefManager` 都会重跑——新版里家长选「五年级」或「只开拼音」后，下次打开应用/锁屏/重启就被重置回默认（三年级 / 拼音+数学）。已加 `legacy_defaults_migrated` 标志，迁移只在首次执行。
+9. **开机"紧急窗口"死代码且判断方向写反**（2026-10-25）：`BootReceiver` 的紧急窗口分支依赖从未被写入的 `last_lock_time`，永不触发；且条件与注释相反（注释说"锁定后 5 分钟内不恢复"，代码是"锁定超过 5 分钟才解锁"），一旦补上写入调用就会变成"锁定超 5 分钟后重启即解锁"的绕过漏洞。已删除该分支及 `PrefManager` 中无调用方的 `getLastLockTime/setLastLockTime`。
 
 ### 功能新增（多科目分级题库）
 
@@ -212,6 +214,9 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 ### 小清理
 
+- 删除重复的 `.github/workflows/release.yml`（2026-10-25）：与 `build.yml` 在同一 `v*` 标签上重复触发并竞争创建 Release，且其签名变量名 `KEYSTORE_PATH` 与构建脚本读取的 `KEYSTORE_FILE` 不符，产出的 APK 未签名。发布统一走 `build.yml`
+- 移除未使用的 `kotlinx-coroutines` 依赖；删除无调用方的死代码（`Subject.isValid/isPhaseAllowed`、`LockOverlayManager.getOverlayHoldUntil/isOverlayShown`）与全屏悬浮窗上无意义的 `FLAG_NOT_TOUCH_MODAL`（2026-10-25）
+- `.workbuddy/` 本机调试产物（adb 截图、UI dump、会话记录）移出版本库，整个目录加入 `.gitignore`（2026-10-25）
 - 设置 PIN 弹窗原来只校验长度为 4，现校验必须是 4 位数字（2026-09-30）
 - 删除从未使用的 `QUERY_ALL_PACKAGES` 权限（利于应用商店审核）（2026-09-30）
 - 删除空实现的 `onUserLeaveHint()`、全屏悬浮窗上无意义的 `FLAG_NOT_TOUCH_MODAL`、未使用的导入（2026-09-30）
