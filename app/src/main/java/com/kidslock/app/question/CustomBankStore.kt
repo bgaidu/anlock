@@ -20,6 +20,13 @@ object CustomBankStore {
     fun isSupported(subject: String): Boolean = subject in SUPPORTED
 
     @JvmStatic
+    fun canImport(subject: String, grade: Int, json: String): Boolean {
+        if (!isSupported(subject) || !Grade.isValid(grade)) return false
+        val list = parseEntries(json) ?: return false
+        return list.size >= MIN_ENTRIES
+    }
+
+    @JvmStatic
     fun hasCustom(ctx: Context, subject: String, grade: Int): Boolean =
         fileFor(ctx, subject, grade).exists()
 
@@ -39,9 +46,8 @@ object CustomBankStore {
 
     @JvmStatic
     fun importBank(ctx: Context, subject: String, grade: Int, json: String): Boolean {
-        if (!isSupported(subject) || !Grade.isValid(grade)) return false
-        val list = parseEntries(json) ?: return false
-        if (list.size < MIN_ENTRIES) return false
+        if (!canImport(subject, grade, json)) return false
+        val list = parseEntries(json)!!
         return try {
             val outArr = JSONArray()
             for (e in list) {

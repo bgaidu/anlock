@@ -8,13 +8,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import java.math.BigInteger
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.security.NoSuchAlgorithmException
 import java.security.SecureRandom
-import java.security.spec.KeySpec
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
 
 class PrefManager(private val context: Context) {
 
@@ -35,8 +29,6 @@ class PrefManager(private val context: Context) {
         private const val KEY_PIN_FAIL_COUNT = "pin_fail_count"
         private const val KEY_PIN_LOCK_UNTIL = "pin_lock_until"
         private const val KEY_PIN_MODIFIED = "pin_modified"
-        private const val PBKDF2_ITERATIONS = 10000
-        private const val PIN_HASH_LENGTH = 256
         private const val KEY_QUESTION_GRADE = "question_grade"
         private const val KEY_QUESTION_SUBJECTS = "question_subjects"
         private const val DEFAULT_AUTO_START = true
@@ -201,7 +193,7 @@ class PrefManager(private val context: Context) {
             return false
         }
         if (stored.length == 64) {
-            if (stored == sha256Hex(getOrCreateSalt() + "|" + pin)) {
+            if (stored == PinHasher.sha256Hex(getOrCreateSalt() + "|" + pin)) {
                 try {
                     setParentPin(pin)
                     resetPinFailures()
@@ -215,17 +207,16 @@ class PrefManager(private val context: Context) {
         if (stored.length == 96) {
             val saltHex = stored.substring(0, 32)
             val hashHex = stored.substring(32)
-            return hashHex == pbkdf2Hex(pin, hexToBytes(saltHex))
+            return hashHex == PinHasher.pbkdf2Hex(pin, PinHasher.hexToBytes(saltHex))
         }
         return false
     }
 
     fun setParentPin(pin: String?): Boolean {
         if (pin.isNullOrEmpty()) return false
-        val salt = ByteArray(16)
-        SecureRandom().nextBytes(salt)
-        val saltHex = bytesToHex(salt)
-        val hashHex = pbkdf2Hex(pin, salt)
+        val salt = PinHasher.newSalt()
+        val saltHex = PinHasher.bytesToHex(salt)
+        val hashHex = PinHasher.pbkdf2Hex(pin, salt)
         if (hashHex.length != 64) {
             throw IllegalStateException("pbkdf2Hex 返回了非 64 位摘要")
         }
@@ -255,58 +246,6 @@ class PrefManager(private val context: Context) {
         var salt: String = prefs.getString(KEY_PIN_SALT, null) ?: BigInteger(64, SecureRandom()).toString(16)
         prefs.edit().putString(KEY_PIN_SALT, salt).apply()
         return salt
-    }
-
-    private fun sha256Hex(s: String): String {
-        try {
-            val md = MessageDigest.getInstance("SHA-256")
-            val d = md.digest(s.toByteArray(StandardCharsets.UTF_8))
-            val sb = StringBuilder(d.size * 2)
-            for (b in d) {
-                sb.append(Character.forDigit((b.toInt() shr 4) and 0xF, 16))
-                sb.append(Character.forDigit(b.toInt() and 0xF, 16))
-            }
-            return sb.toString()
-        } catch (e: NoSuchAlgorithmException) {
-            throw IllegalStateException("SHA-256 not available", e)
-        }
-    }
-
-    private fun pbkdf2Hex(password: String, salt: ByteArray): String {
-        try {
-            val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec: KeySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, PIN_HASH_LENGTH)
-            val hash = skf.generateSecret(spec).encoded
-            return bytesToHex(hash)
-        } catch (e: NoSuchAlgorithmException) {
-            // 某些设备不支持 PBKDF2WithHmacSHA256，降级到 SHA-256（仍带盐，安全性足够）
-            val md = MessageDigest.getInstance("SHA-256")
-            md.update(salt)
-            md.update(password.toByteArray(StandardCharsets.UTF_8))
-            return bytesToHex(md.digest())
-        } catch (e: Exception) {
-            throw IllegalStateException("PBKDF2 not available", e)
-        }
-    }
-
-    private fun hexToBytes(hex: String): ByteArray {
-        val len = hex.length
-        val data = ByteArray(len / 2)
-        var i = 0
-        while (i < len) {
-            data[i / 2] = ((Character.digit(hex[i], 16) shl 4) + Character.digit(hex[i + 1], 16)).toByte()
-            i += 2
-        }
-        return data
-    }
-
-    private fun bytesToHex(bytes: ByteArray): String {
-        val sb = StringBuilder(bytes.size * 2)
-        for (b in bytes) {
-            sb.append(Character.forDigit((b.toInt() shr 4) and 0xF, 16))
-            sb.append(Character.forDigit(b.toInt() and 0xF, 16))
-        }
-        return sb.toString()
     }
 
     fun isPinLocked(): Boolean = System.currentTimeMillis() < prefs.getLong(KEY_PIN_LOCK_UNTIL, 0)
