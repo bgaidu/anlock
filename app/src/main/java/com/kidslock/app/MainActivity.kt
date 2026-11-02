@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.kidslock.app.question.BankRepository
 import com.kidslock.app.question.CustomBankStore
 import com.kidslock.app.question.Grade
+import com.kidslock.app.question.QuestionEngine
 import com.kidslock.app.question.Subject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGuardStatus: Button
     private lateinit var tvQuestionGrade: TextView
     private lateinit var tvQuestionSubjects: TextView
+    private lateinit var tvSubjectWarning: TextView
     private lateinit var tvAccuracy: TextView
     private lateinit var tvPinStatus: TextView
     private val btnGrades = arrayOfNulls<Button>(7)
@@ -166,6 +168,7 @@ class MainActivity : AppCompatActivity() {
         btnGuardStatus = findViewById(R.id.btnGuardStatus)
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade)
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects)
+        tvSubjectWarning = findViewById(R.id.tvSubjectWarning)
         tvAccuracy = findViewById(R.id.tvAccuracy)
         tvPinStatus = findViewById(R.id.tvPinStatus)
         btnGrades[0] = findViewById(R.id.btnGrade0)
@@ -482,6 +485,16 @@ class MainActivity : AppCompatActivity() {
         setButtonSelected(btnSubjectMath, pref.isSubjectEnabled(Subject.MATH), Subject.label(Subject.MATH))
         setButtonSelected(btnSubjectEnglish, pref.isSubjectEnabled(Subject.ENGLISH), Subject.label(Subject.ENGLISH))
         setButtonSelected(btnSubjectCitu, pref.isSubjectEnabled(Subject.CITU), Subject.label(Subject.CITU))
+
+        val blocked = QuestionEngine.unavailableSubjects(this, pref)
+        if (blocked.isEmpty()) {
+            tvSubjectWarning.visibility = View.GONE
+        } else {
+            val names = blocked.joinToString("、") { Subject.label(it) }
+            tvSubjectWarning.text =
+                getString(R.string.subject_unavailable_warning, names)
+            tvSubjectWarning.visibility = View.VISIBLE
+        }
 
         if (pref.isLocked()) {
             tvStatus.text = "当前状态：已锁屏"

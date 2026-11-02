@@ -461,6 +461,16 @@
                 android:nextFocusRight="@id/btnSubjectPinyin" />
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/tvSubjectWarning"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/wrong_red"
+            android:textSize="@dimen/text_body"
+            android:gravity="center"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:visibility="gone" />
+
         <!-- 预览一道题（R24：PIN 门禁之后，复用引擎+锁屏渲染，不计入防重复队列） -->
         <Button
             android:id="@+id/btnPreviewQuestion"

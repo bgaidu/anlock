@@ -29,13 +29,7 @@ class QuestionEngine private constructor(
             val effective = LinkedHashSet<String>()
             for (s in Subject.ORDER) {
                 if (!subjects.contains(s)) continue
-                val p: QuestionProvider = when (s) {
-                    Subject.PINYIN -> PinyinProvider(ctx)
-                    Subject.MATH -> MathProvider(ctx)
-                    Subject.ENGLISH -> EnglishProvider(ctx)
-                    Subject.CITU -> CituProvider(ctx)
-                    else -> continue
-                }
+                val p = providerFor(ctx, s) ?: continue
                 if (!p.isAvailable(grade)) {
                     Log.w(TAG, "QuestionEngine: 科目不可用，跳过 $s（grade=$grade）")
                     continue
@@ -55,6 +49,30 @@ class QuestionEngine private constructor(
 
             val schedule = buildSchedule(effective, total, Random())
             return QuestionEngine(ctx, list, bySubject, schedule, grade)
+        }
+
+        @JvmStatic
+        private fun providerFor(ctx: Context, s: String): QuestionProvider? {
+            return when (s) {
+                Subject.PINYIN -> PinyinProvider(ctx)
+                Subject.MATH -> MathProvider(ctx)
+                Subject.ENGLISH -> EnglishProvider(ctx)
+                Subject.CITU -> CituProvider(ctx)
+                else -> null
+            }
+        }
+
+        @JvmStatic
+        fun unavailableSubjects(ctx: Context, pref: PrefManager): List<String> {
+            val grade = pref.grade
+            val subjects = pref.subjects
+            val blocked = ArrayList<String>()
+            for (s in Subject.ORDER) {
+                if (!subjects.contains(s)) continue
+                val p = providerFor(ctx, s) ?: continue
+                if (!p.isAvailable(grade)) blocked.add(s)
+            }
+            return blocked
         }
 
         @JvmStatic
