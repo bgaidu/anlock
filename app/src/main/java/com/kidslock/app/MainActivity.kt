@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvQuestionSubjects: TextView
     private lateinit var tvSubjectWarning: TextView
     private lateinit var tvAccuracy: TextView
+    private lateinit var btnResetStats: Button
     private lateinit var tvPinStatus: TextView
     private val btnGrades = arrayOfNulls<Button>(7)
     private lateinit var btnSubjectPinyin: Button
@@ -170,6 +171,12 @@ class MainActivity : AppCompatActivity() {
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects)
         tvSubjectWarning = findViewById(R.id.tvSubjectWarning)
         tvAccuracy = findViewById(R.id.tvAccuracy)
+        btnResetStats = findViewById(R.id.btnResetStats)
+        btnResetStats.setOnClickListener {
+            pref.resetStats()
+            updateStatus()
+            toast(getString(R.string.toast_reset_stats))
+        }
         tvPinStatus = findViewById(R.id.tvPinStatus)
         btnGrades[0] = findViewById(R.id.btnGrade0)
         btnGrades[1] = findViewById(R.id.btnGrade1)
@@ -522,9 +529,11 @@ class MainActivity : AppCompatActivity() {
         val acc = pref.getAccuracyPercent()
         if (acc < 0) {
             tvAccuracy.visibility = View.GONE
+            btnResetStats.visibility = View.GONE
         } else {
             tvAccuracy.text = getString(R.string.accuracy_text, acc)
             tvAccuracy.visibility = View.VISIBLE
+            btnResetStats.visibility = View.VISIBLE
         }
 
         if (pref.isPinModified()) {

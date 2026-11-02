@@ -50,6 +50,8 @@
 
     <!-- 答题正确率（R25） -->
     <string name="accuracy_text">累计正确率 %1$d%%</string>
+    <string name="btn_reset_stats">重置正确率统计</string>
+    <string name="toast_reset_stats">正确率统计已清零</string>
 
     <!-- PIN 状态（T5） -->
     <string name="pin_status_default">PIN码：默认（建议修改）</string>

@@ -444,6 +444,10 @@ class PrefManager(private val context: Context) {
         prefs.edit().putInt(KEY_STAT_TOTAL, total).putInt(KEY_STAT_CORRECT, c).apply()
     }
 
+    fun resetStats() {
+        prefs.edit().remove(KEY_STAT_TOTAL).remove(KEY_STAT_CORRECT).apply()
+    }
+
     fun getStatTotal(): Int = prefs.getInt(KEY_STAT_TOTAL, 0)
 
     fun getStatCorrect(): Int = prefs.getInt(KEY_STAT_CORRECT, 0)

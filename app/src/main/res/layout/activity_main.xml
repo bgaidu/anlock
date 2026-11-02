@@ -495,6 +495,19 @@
             android:layout_marginTop="@dimen/spacing_small"
             android:visibility="gone" />
 
+        <Button
+            android:id="@+id/btnResetStats"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_reset_stats"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- PIN 状态（T5：显示是否已修改默认 PIN） -->
         <TextView
             android:id="@+id/tvPinStatus"
