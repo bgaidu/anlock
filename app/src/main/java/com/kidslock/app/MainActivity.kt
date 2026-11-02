@@ -13,6 +13,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -78,6 +79,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         pref = PrefManager(this)
 
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
+
         importLauncher = registerForActivityResult(
             ActivityResultContracts.OpenDocument()
         ) { uri -> onBankFilePicked(uri) }
@@ -136,6 +142,14 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         handler.removeCallbacks(updateRunnable)
         gateVerified = false
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
     }
 
     private fun initViews() {

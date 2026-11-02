@@ -2,6 +2,7 @@ package com.kidslock.app
 
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -21,6 +22,10 @@ class QuestionPreviewActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
         setContentView(R.layout.activity_question_preview)
 
         engine = QuestionEngine.create(this, PrefManager(this))
@@ -43,6 +48,14 @@ class QuestionPreviewActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnPreviewClose).setOnClickListener { finish() }
 
         loadNext()
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
     }
 
     private fun loadNext() {

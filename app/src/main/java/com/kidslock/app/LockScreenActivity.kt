@@ -85,6 +85,10 @@ class LockScreenActivity : AppCompatActivity() {
                     or WindowManager.LayoutParams.FLAG_FULLSCREEN
                     or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         )
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
         hideSystemUI()
 
         initViews()
@@ -283,6 +287,15 @@ class LockScreenActivity : AppCompatActivity() {
             pinInput.setLength(0)
             updatePinDisplay()
         }
+    }
+
+    override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode)
+        window.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT
+        )
+        hideSystemUI()
     }
 
     override fun onPause() {
