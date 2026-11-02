@@ -16,8 +16,12 @@
 
 # Gradle
 .gradle/
+.gradle-home/
 gradle-app.setting
 local.properties
+
+# 本地备份产物（APK、补丁等），不纳入版本控制
+/backup/
 
 # 本地工具链与本机调试记录（免安装 JDK、adb 截图、会话记忆），不纳入版本控制
 /.workbuddy/
