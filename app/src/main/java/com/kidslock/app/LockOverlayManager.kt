@@ -48,6 +48,7 @@ class LockOverlayManager(
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var overlayView: View? = null
 
+    @Suppress("DEPRECATION")
     fun showOverlayIfPermitted() {
         if (!canDrawOverlays()) {
             Log.d(TAG, "Overlay permission not granted, skip overlay")
