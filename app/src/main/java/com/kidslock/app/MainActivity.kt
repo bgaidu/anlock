@@ -147,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         gateVerified = false
     }
 
+    @Suppress("DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
         window.setLayout(

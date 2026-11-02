@@ -12,6 +12,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.kidslock.app.question.Question
@@ -61,6 +62,7 @@ class LockScreenActivity : AppCompatActivity() {
     private var resumed = false
     private val startedAtElapsed = SystemClock.elapsedRealtime()
 
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         foregroundInstance = this
@@ -93,6 +95,17 @@ class LockScreenActivity : AppCompatActivity() {
 
         initViews()
         loadNextQuestion()
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (layoutPin.visibility == View.VISIBLE) {
+                    layoutPin.visibility = View.GONE
+                    layoutMain.visibility = View.VISIBLE
+                    pinInput.setLength(0)
+                    updatePinDisplay()
+                }
+            }
+        })
     }
 
     private fun initViews() {
@@ -279,16 +292,7 @@ class LockScreenActivity : AppCompatActivity() {
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (layoutPin.visibility == View.VISIBLE) {
-            layoutPin.visibility = View.GONE
-            layoutMain.visibility = View.VISIBLE
-            pinInput.setLength(0)
-            updatePinDisplay()
-        }
-    }
-
+    @Suppress("DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
         window.setLayout(
@@ -303,6 +307,7 @@ class LockScreenActivity : AppCompatActivity() {
         resumed = false
     }
 
+    @Suppress("DEPRECATION")
     override fun onResume() {
         super.onResume()
         resumed = true
@@ -330,6 +335,7 @@ class LockScreenActivity : AppCompatActivity() {
         if (foregroundInstance == this) foregroundInstance = null
     }
 
+    @Suppress("DEPRECATION")
     private fun hideSystemUI() {
         val decorView = window.decorView
         val uiOptions = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or

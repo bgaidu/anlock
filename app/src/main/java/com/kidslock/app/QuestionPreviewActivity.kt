@@ -50,6 +50,7 @@ class QuestionPreviewActivity : AppCompatActivity() {
         loadNext()
     }
 
+    @Suppress("DEPRECATION")
     override fun onMultiWindowModeChanged(isInMultiWindowMode: Boolean) {
         super.onMultiWindowModeChanged(isInMultiWindowMode)
         window.setLayout(
