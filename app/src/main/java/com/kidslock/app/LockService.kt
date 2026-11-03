@@ -81,7 +81,9 @@ class LockService : Service() {
         }
 
         if (intent != null && ACTION_HOLD_OVERLAY == intent.action) {
-            overlayManager.showOverlayIfPermitted()
+            if (!LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
+                overlayManager.showOverlayIfPermitted()
+            }
             return START_STICKY
         }
 
