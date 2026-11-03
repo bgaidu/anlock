@@ -60,6 +60,9 @@ class LockScreenActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
 
     private var resumed = false
+    private var answering = false
+    private var unlocking = false
+    private var pendingNext: Runnable? = null
     private val startedAtElapsed = SystemClock.elapsedRealtime()
 
     @Suppress("DEPRECATION")
@@ -155,6 +158,9 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun loadNextQuestion() {
+        answering = false
+        unlocking = false
+        pendingNext = null
         currentQuestion = engine.nextQuestion()
         currentOptions = currentQuestion.options
 
@@ -179,9 +185,13 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun onOptionSelected(index: Int) {
-        for (b in optionButtons) {
-            b.isEnabled = false
+        if (unlocking) return
+        if (answering) {
+            pendingNext?.let { handler.removeCallbacks(it) }
+            loadNextQuestion()
+            return
         }
+        answering = true
 
         pref.recordAnswer(index == currentQuestion.correctIndex)
 
@@ -194,9 +204,10 @@ class LockScreenActivity : AppCompatActivity() {
             tvFeedback.visibility = View.VISIBLE
 
             if (correctCount >= requiredCount) {
+                unlocking = true
                 handler.postDelayed({ unlock() }, 600)
             } else {
-                handler.postDelayed({ loadNextQuestion() }, 1000)
+                scheduleNext(1000)
             }
         } else {
             correctCount = 0
@@ -211,8 +222,14 @@ class LockScreenActivity : AppCompatActivity() {
             tvFeedback.text = "答错了，重新开始！"
             tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
             tvFeedback.visibility = View.VISIBLE
-            handler.postDelayed({ loadNextQuestion() }, 1500)
+            scheduleNext(1500)
         }
+    }
+
+    private fun scheduleNext(delayMillis: Long) {
+        val runnable = Runnable { loadNextQuestion() }
+        pendingNext = runnable
+        handler.postDelayed(runnable, delayMillis)
     }
 
     private fun updateProgress() {
