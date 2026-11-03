@@ -102,8 +102,7 @@ class PermissionActivity : AppCompatActivity() {
     private fun bind(tv: TextView, btn: Button, titleRes: Int, ok: Boolean) {
         tv.text = getString(titleRes) + "：" + getString(if (ok) R.string.perm_ok else R.string.perm_missing_one)
         tv.setTextColor(ContextCompat.getColor(this, if (ok) R.color.correct_green else R.color.wrong_red))
-        btn.text = getString(if (ok) R.string.perm_ok else R.string.perm_open)
-        btn.isEnabled = !ok
+        btn.text = getString(if (ok) R.string.perm_view else R.string.perm_open)
     }
 
     private fun openOverlay() {
@@ -168,7 +167,12 @@ class PermissionActivity : AppCompatActivity() {
     private fun openBattery() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        if (pm != null && pm.isIgnoringBatteryOptimizations(packageName)) return
+        if (pm != null && pm.isIgnoringBatteryOptimizations(packageName)) {
+            if (!startSafely(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))) {
+                toast(getString(R.string.perm_tip_battery))
+            }
+            return
+        }
         val direct = Intent(
             Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
             Uri.parse("package:$packageName")

@@ -92,6 +92,7 @@
     <string name="perm_copy_cmd">复制 adb 命令</string>
     <string name="perm_copied">命令已复制到剪贴板</string>
     <string name="perm_open">去开启</string>
+    <string name="perm_view">查看</string>
     <string name="perm_ok">已开启</string>
     <string name="perm_missing_one">未开启</string>
     <string name="perm_optional_missing">未授予（可选）</string>

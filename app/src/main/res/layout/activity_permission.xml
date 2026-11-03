@@ -219,6 +219,7 @@
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
             android:minWidth="240dp"
+            android:textAllCaps="false"
             android:text="@string/perm_copy_cmd"
             android:textSize="@dimen/text_body"
             android:background="@drawable/btn_settings_bg"
