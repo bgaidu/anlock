@@ -564,6 +564,19 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 权限检查（应用内逐项开启系统权限） -->
+        <Button
+            android:id="@+id/btnPermissions"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 守护服务（无障碍）状态：未开启时点击跳转系统无障碍设置 -->
         <Button
             android:id="@+id/btnGuardStatus"

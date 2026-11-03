@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvWatchTime: TextView
     private lateinit var tvUnlockCount: TextView
     private lateinit var btnGuardStatus: Button
+    private lateinit var btnPermissions: Button
     private lateinit var tvQuestionGrade: TextView
     private lateinit var tvQuestionSubjects: TextView
     private lateinit var tvSubjectWarning: TextView
@@ -168,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         tvWatchTime = findViewById(R.id.tvWatchTime)
         tvUnlockCount = findViewById(R.id.tvUnlockCount)
         btnGuardStatus = findViewById(R.id.btnGuardStatus)
+        btnPermissions = findViewById(R.id.btnPermissions)
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade)
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects)
         tvSubjectWarning = findViewById(R.id.tvSubjectWarning)
@@ -190,6 +192,11 @@ class MainActivity : AppCompatActivity() {
         btnSubjectMath = findViewById(R.id.btnSubjectMath)
         btnSubjectEnglish = findViewById(R.id.btnSubjectEnglish)
         btnSubjectCitu = findViewById(R.id.btnSubjectCitu)
+
+        btnPermissions = findViewById(R.id.btnPermissions)
+        btnPermissions.setOnClickListener {
+            startActivity(Intent(this, PermissionActivity::class.java))
+        }
 
         btnGuardStatus.setOnClickListener {
             if (RecoveryAccessibilityService.isServiceEnabled(this)) {
@@ -477,6 +484,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateStatus() {
         btnGuardStatus.text = if (RecoveryAccessibilityService.isServiceEnabled(this))
             "守护服务：已开启" else "守护服务：未开启，点击开启"
+
+        val permMissing = PermissionStatus.missingCount(this)
+        btnPermissions.text = if (permMissing == 0)
+            getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissing)
 
         btnAutoStart.text = if (pref.isAutoStart()) "开机自启：已开启" else "开机自启：已关闭"
         btnEmergencyReboot.text =
