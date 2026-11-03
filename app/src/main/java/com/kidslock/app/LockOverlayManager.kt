@@ -22,6 +22,11 @@ class LockOverlayManager(
         private const val TAG = "LockService"
 
         @JvmStatic
+        fun hideOverlay(context: Context) {
+            LockService.runningInstance?.hideOverlay()
+        }
+
+        @JvmStatic
         fun holdOverlay(context: Context) {
             val s = LockService.runningInstance
             if (s != null) {

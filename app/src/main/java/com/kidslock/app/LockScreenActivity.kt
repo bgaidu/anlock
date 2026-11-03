@@ -78,6 +78,7 @@ class LockScreenActivity : AppCompatActivity() {
         pref = PrefManager(this)
         engine = QuestionEngine.create(this, pref)
         requiredCount = pref.unlockCount
+        LockOverlayManager.hideOverlay(this)
 
         window.addFlags(
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
@@ -312,6 +313,7 @@ class LockScreenActivity : AppCompatActivity() {
         super.onResume()
         resumed = true
         foregroundInstance = this
+        LockOverlayManager.hideOverlay(this)
         hideSystemUI()
         focusUnlockButton()
 

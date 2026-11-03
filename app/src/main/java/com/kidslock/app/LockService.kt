@@ -88,7 +88,9 @@ class LockService : Service() {
         if (pref.isLocked()) {
             Log.i(TAG, "Device locked, starting lock watchdog")
             lockGuard.start()
-            overlayManager.showOverlayIfPermitted()
+            if (!LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
+                overlayManager.showOverlayIfPermitted()
+            }
             return START_STICKY
         }
 
@@ -121,6 +123,7 @@ class LockService : Service() {
     }
 
     private fun startLockScreenActivity() {
+        overlayManager.hideOverlay()
         handler.postDelayed({
             val lockIntent = Intent(this, LockScreenActivity::class.java)
             lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -139,6 +142,10 @@ class LockService : Service() {
         overlayManager.hideOverlay()
         lockGuard.stop()
         timerManager.start()
+    }
+
+    fun hideOverlay() {
+        overlayManager.hideOverlay()
     }
 
     fun showOverlayIfPermitted() {
