@@ -54,6 +54,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvUnlockCount: TextView
     private lateinit var btnGuardStatus: Button
     private lateinit var btnPermissions: Button
+    private var permStatusDirty = true
+    private var permMissingCount = 0
     private lateinit var tvQuestionGrade: TextView
     private lateinit var tvQuestionSubjects: TextView
     private lateinit var tvSubjectWarning: TextView
@@ -123,6 +125,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        permStatusDirty = true
         pref = PrefManager(this)
         if (pref.isLocked()) {
             val lockIntent = Intent(this, LockScreenActivity::class.java)
@@ -485,9 +488,12 @@ class MainActivity : AppCompatActivity() {
         btnGuardStatus.text = if (RecoveryAccessibilityService.isServiceEnabled(this))
             "守护服务：已开启" else "守护服务：未开启，点击开启"
 
-        val permMissing = PermissionStatus.missingCount(this)
-        btnPermissions.text = if (permMissing == 0)
-            getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissing)
+        if (permStatusDirty) {
+            permMissingCount = PermissionStatus.missingCount(this)
+            permStatusDirty = false
+        }
+        btnPermissions.text = if (permMissingCount == 0)
+            getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissingCount)
 
         btnAutoStart.text = if (pref.isAutoStart()) "开机自启：已开启" else "开机自启：已关闭"
         btnEmergencyReboot.text =
