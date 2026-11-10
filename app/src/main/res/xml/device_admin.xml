@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- 设备所有者模式下用于进入 LockTask（kiosk）并临时禁用系统锁屏 -->
+        <force-lock />
+        <disable-keyguard-features />
+    </uses-policies>
+</device-admin>

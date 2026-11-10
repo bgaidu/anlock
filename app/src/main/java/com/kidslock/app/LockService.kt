@@ -62,12 +62,16 @@ class LockService : Service() {
         })
         overlayManager = LockOverlayManager(this, object : LockOverlayManager.OverlayCallback {
             override fun onLockScreenPulled() {
-                startLockScreenActivity()
+                // 用户点击 overlay 上的解锁入口：先撤掉 overlay，再立即拉起答题界面
+                startLockScreenActivity(keepOverlay = false)
             }
         })
         timerManager.registerScreenListener()
         createNotificationChannel()
         runningInstance = this
+        KioskManager.applyOwnerPolicies(this)
+        KioskManager.syncLockState(this)
+        pref.deductOfflineIfAny()
         Log.i(TAG, "LockService created")
     }
 
@@ -117,6 +121,7 @@ class LockService : Service() {
         Log.i(TAG, "Triggering lock screen!")
         pref.setLocked(true)
         pref.setHomeAliasEnabled(this, true)
+        KioskManager.syncLockState(this)
         pref.stopTimer()
         updateNotification()
         overlayManager.showOverlayIfPermitted()
@@ -124,27 +129,40 @@ class LockService : Service() {
         lockGuard.start()
     }
 
-    private fun startLockScreenActivity() {
-        overlayManager.hideOverlay()
-        handler.postDelayed({
-            val lockIntent = Intent(this, LockScreenActivity::class.java)
-            lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            try {
-                startActivity(lockIntent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Start LockScreenActivity failed", e)
-            }
-        }, 300)
+    private fun startLockScreenActivity(keepOverlay: Boolean = true) {
+        if (keepOverlay) {
+            // 先保持 overlay 覆盖，等 LockScreenActivity.onResume 确认已在前台后再由它撤掉，
+            // 避免原来"先 hideOverlay 再延迟 300ms 拉起"造成的裸奔窗口。
+            overlayManager.showOverlayIfPermitted()
+            handler.postDelayed({ pullLockScreen() }, 300)
+        } else {
+            overlayManager.hideOverlay()
+            pullLockScreen()
+        }
+    }
+
+    private fun pullLockScreen() {
+        if (!pref.isLocked()) return
+        val lockIntent = Intent(this, LockScreenActivity::class.java)
+        lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        try {
+            startActivity(lockIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Start LockScreenActivity failed", e)
+        }
     }
 
     private fun unlockAndStop() {
         pref.setLocked(false)
         pref.setHomeAliasEnabled(this, false)
+        KioskManager.syncLockState(this)
         pref.resetPinFailures()
         overlayManager.hideOverlay()
         lockGuard.stop()
         timerManager.start()
     }
+
+    fun isOverlayShowing(): Boolean = overlayManager.isShowing()
 
     fun hideOverlay() {
         overlayManager.hideOverlay()

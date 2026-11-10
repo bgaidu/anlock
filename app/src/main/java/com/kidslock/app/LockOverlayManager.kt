@@ -92,6 +92,8 @@ class LockOverlayManager(
         }
     }
 
+    fun isShowing(): Boolean = overlayView != null
+
     private fun canDrawOverlays(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
     }

@@ -123,6 +123,29 @@
                 android:resource="@xml/recovery_accessibility_config" />
         </service>
 
+        <!-- 设备管理器：adb 设为 Device Owner 后启用 LockTask（kiosk）与防卸载 -->
+        <receiver
+            android:name=".KidsDeviceAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Device Owner 被系统绑定的服务：force-stop 后的复活通道之一 -->
+        <service
+            android:name=".KidsDeviceAdminService"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_SERVICE" />
+            </intent-filter>
+        </service>
+
         <!-- Timer Service -->
         <service
             android:name=".LockService"

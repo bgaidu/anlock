@@ -26,6 +26,8 @@ class BootReceiver : BroadcastReceiver() {
 
         val pref = PrefManager(context)
         pref.deductOfflineIfAny()
+        KioskManager.applyOwnerPolicies(context)
+        KioskManager.syncLockState(context)
 
         if (pref.isLocked()) {
             // 紧急解锁模式 1：紧急文件（adb 或老设备文件管理器写入应用外部私有目录，

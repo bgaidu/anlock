@@ -84,6 +84,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pref = PrefManager(this)
+        // 进程被强停/被杀后重新打开时，把缺失的时间一次性补扣掉
+        pref.deductOfflineIfAny()
+        KioskManager.applyOwnerPolicies(this)
 
         window.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -127,6 +130,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         permStatusDirty = true
         pref = PrefManager(this)
+        KioskManager.applyOwnerPolicies(this)
         if (pref.isLocked()) {
             val lockIntent = Intent(this, LockScreenActivity::class.java)
             lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -485,8 +489,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
-        btnGuardStatus.text = if (RecoveryAccessibilityService.isServiceEnabled(this))
-            "守护服务：已开启" else "守护服务：未开启，点击开启"
+        val guardOn = RecoveryAccessibilityService.isServiceEnabled(this)
+        val owner = KioskManager.isDeviceOwner(this)
+        btnGuardStatus.text = when {
+            guardOn && owner -> "守护服务：已开启 · 设备所有者"
+            guardOn -> "守护服务：已开启"
+            owner -> "守护服务：未开启，点击开启 · 设备所有者"
+            else -> "守护服务：未开启，点击开启"
+        }
 
         if (permStatusDirty) {
             permMissingCount = PermissionStatus.missingCount(this)

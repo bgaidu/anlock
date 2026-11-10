@@ -81,6 +81,7 @@ class LockScreenActivity : AppCompatActivity() {
         pref = PrefManager(this)
         engine = QuestionEngine.create(this, pref)
         requiredCount = pref.unlockCount
+        KioskManager.applyOwnerPolicies(this)
         LockOverlayManager.hideOverlay(this)
 
         window.addFlags(
@@ -244,6 +245,7 @@ class LockScreenActivity : AppCompatActivity() {
     private fun unlock() {
         pref.setLocked(false)
         pref.setHomeAliasEnabled(this, false)
+        KioskManager.exitLockTask(this)
         val minutes = pref.getWatchLimitMinutes()
         pref.startTimer(minutes)
         pref.resetPinFailures()
@@ -323,6 +325,10 @@ class LockScreenActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         resumed = false
+        // 锁屏退到后台时立刻用 overlay 补位，避免出现 20:34 那种"锁屏已暂停、桌面/游戏裸奔"的空窗
+        if (pref.isLocked()) {
+            LockOverlayManager.holdOverlay(this)
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -330,6 +336,9 @@ class LockScreenActivity : AppCompatActivity() {
         super.onResume()
         resumed = true
         foregroundInstance = this
+        if (pref.isLocked()) {
+            KioskManager.enterLockTask(this)
+        }
         LockOverlayManager.hideOverlay(this)
         hideSystemUI()
         focusUnlockButton()
@@ -345,6 +354,10 @@ class LockScreenActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
             hideSystemUI()
+            // 兜底：onResume 时若 startLockTask 尚未生效，拿到焦点后重试一次
+            if (pref.isLocked()) {
+                KioskManager.enterLockTask(this)
+            }
         }
     }
 
@@ -352,6 +365,10 @@ class LockScreenActivity : AppCompatActivity() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)
         if (foregroundInstance == this) foregroundInstance = null
+        // 正常解锁（pref 已置 false）时确保退出 kiosk；被系统回收时保持锁定状态
+        if (isFinishing && !pref.isLocked()) {
+            KioskManager.exitLockTask(this)
+        }
     }
 
     @Suppress("DEPRECATION")
