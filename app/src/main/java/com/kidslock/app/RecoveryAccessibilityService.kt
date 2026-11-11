@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 
 class RecoveryAccessibilityService : AccessibilityService() {
@@ -20,7 +21,10 @@ class RecoveryAccessibilityService : AccessibilityService() {
         private const val RECOVERY_DEBOUNCE_MS = 3000L
         private const val PERIODIC_CHECK_MS = 30000L
         private const val SUPPRESS_DEBOUNCE_MS = 800L
+        private const val SETTINGS_SUPPRESS_DEBOUNCE_MS = 1500L
+        private const val SETTINGS_PACKAGES = "com.android.settings,com.android.tv.settings,com.google.android.tv.settings"
         private var lastSuppress: Long = 0
+        private var lastSettingsSuppress: Long = 0
 
         @JvmStatic
         fun isServiceEnabled(context: Context): Boolean {
@@ -107,6 +111,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         suppressForeignWindow(event)
+        suppressSettings(event)
         recoverIfNeeded()
     }
 
@@ -124,6 +129,41 @@ class RecoveryAccessibilityService : AccessibilityService() {
             LockOverlayManager.holdOverlay(this)
         } catch (e: Exception) {
             Log.e(TAG, "suppressForeignWindow failed", e)
+        }
+    }
+
+    /**
+     * 管控期间拦截系统设置：孩子进入设置页会直接回到桌面。
+     * 家长在设置页验证 PIN 后 2 分钟内可自由进入；权限页打开系统设置时也会自动放行。
+     *
+     * 只在「计时中 / 锁屏中」生效，且依赖无障碍服务识别应用切换。
+     */
+    private fun suppressSettings(event: AccessibilityEvent) {
+        val pref = PrefManager(this)
+        if (!pref.isLocked() && !pref.isTimerActive()) return
+        if (pref.isSettingsAllowedNow()) return
+        val pkg = event.packageName?.toString() ?: return
+        if (!isSettingsPackage(pkg)) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastSettingsSuppress < SETTINGS_SUPPRESS_DEBOUNCE_MS) return
+        lastSettingsSuppress = now
+        Log.i(TAG, "Settings blocked during control: $pkg")
+        Diag.w("Guard", "settings blocked: $pkg (locked=${pref.isLocked()} timer=${pref.isTimerActive()})")
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        if (pref.isLocked()) LockOverlayManager.holdOverlay(this)
+        try {
+            Toast.makeText(this, "管控期间系统设置已锁定，家长 PIN 验证后可进入", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun isSettingsPackage(pkg: String): Boolean {
+        if (pkg in SETTINGS_PACKAGES.split(",")) return true
+        return try {
+            packageManager.resolveActivity(Intent(Settings.ACTION_SETTINGS), 0)
+                ?.activityInfo?.packageName == pkg
+        } catch (_: Exception) {
+            false
         }
     }
 

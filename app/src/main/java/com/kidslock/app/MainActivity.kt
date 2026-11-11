@@ -3,6 +3,9 @@ package com.kidslock.app
 import android.Manifest
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -16,6 +19,8 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -27,9 +32,14 @@ import com.kidslock.app.question.BankRepository
 import com.kidslock.app.question.CustomBankStore
 import com.kidslock.app.question.Grade
 import com.kidslock.app.question.QuestionEngine
+import com.kidslock.app.question.ReviewStore
 import com.kidslock.app.question.Subject
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 
 class MainActivity : AppCompatActivity() {
@@ -37,11 +47,19 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQ_POST_NOTIFICATIONS = 1001
         private val IMPORTABLE_SUBJECTS = arrayOf(Subject.PINYIN, Subject.ENGLISH, Subject.CITU)
+
+        /** 设置页是否在前台：LockService 用它决定是否显示剩余时间角标 */
+        @Volatile
+        var isVisible: Boolean = false
+            private set
     }
 
     private lateinit var importLauncher: ActivityResultLauncher<Array<String>>
+    private lateinit var exportLauncher: ActivityResultLauncher<String>
     private var pendingImportSubject: String? = null
     private var pendingImportGrade = -1
+    private var pendingExportSubject: String? = null
+    private var pendingExportGrade = -1
 
     private lateinit var pref: PrefManager
     private val handler = Handler(Looper.getMainLooper())
@@ -50,10 +68,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvRemaining: TextView
     private lateinit var btnAutoStart: Button
     private lateinit var btnEmergencyReboot: Button
+    private lateinit var btnShowCountdown: Button
     private lateinit var tvWatchTime: TextView
+    private lateinit var tvDailyUsage: TextView
+    private lateinit var btnDailyLimit: Button
+    private lateinit var btnUsageHistory: Button
+    private lateinit var btnExportBank: Button
+    private lateinit var tvSchedule: TextView
+    private lateinit var btnSchedule: Button
+    private lateinit var btnStarExchange: Button
     private lateinit var tvUnlockCount: TextView
     private lateinit var btnGuardStatus: Button
     private lateinit var btnPermissions: Button
+    private lateinit var btnDiag: Button
     private var permStatusDirty = true
     private var permMissingCount = 0
     private lateinit var tvQuestionGrade: TextView
@@ -97,6 +124,10 @@ class MainActivity : AppCompatActivity() {
             ActivityResultContracts.OpenDocument()
         ) { uri -> onBankFilePicked(uri) }
 
+        exportLauncher = registerForActivityResult(
+            ActivityResultContracts.CreateDocument("application/json")
+        ) { uri -> onExportFilePicked(uri) }
+
         if (pref.isLocked()) {
             val lockIntent = Intent(this, LockScreenActivity::class.java)
             lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -111,6 +142,11 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         updateStatus()
         applyGate()
+
+        if (pref.isScheduleEnabled() && !pref.isTimerActive()) {
+            // 兜底：使用时段守护可能因进程被杀而缺席，进入设置页时顺手拉起来
+            startLockService()
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -128,6 +164,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        isVisible = true
         permStatusDirty = true
         pref = PrefManager(this)
         KioskManager.applyOwnerPolicies(this)
@@ -140,6 +177,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (pref.isTimerActive()) {
             startLockService()
+            Revival.schedule(this)
         }
         if (!RecoveryAccessibilityService.isServiceEnabled(this)) {
             RecoveryAccessibilityService.trySelfEnable(this)
@@ -151,6 +189,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        isVisible = false
         handler.removeCallbacks(updateRunnable)
         gateVerified = false
     }
@@ -173,10 +212,24 @@ class MainActivity : AppCompatActivity() {
         tvRemaining = findViewById(R.id.tvRemaining)
         btnAutoStart = findViewById(R.id.btnAutoStart)
         btnEmergencyReboot = findViewById(R.id.btnEmergencyReboot)
+        btnShowCountdown = findViewById(R.id.btnShowCountdown)
         tvWatchTime = findViewById(R.id.tvWatchTime)
+        tvDailyUsage = findViewById(R.id.tvDailyUsage)
+        btnDailyLimit = findViewById(R.id.btnDailyLimit)
+        btnDailyLimit.setOnClickListener { showDailyLimitDialog() }
+        btnUsageHistory = findViewById(R.id.btnUsageHistory)
+        btnUsageHistory.setOnClickListener { showUsageHistoryDialog() }
+        btnExportBank = findViewById(R.id.btnExportBank)
+        btnExportBank.setOnClickListener { showExportBankDialog() }
+        tvSchedule = findViewById(R.id.tvSchedule)
+        btnSchedule = findViewById(R.id.btnSchedule)
+        btnSchedule.setOnClickListener { showScheduleDialog() }
+        btnStarExchange = findViewById(R.id.btnStarExchange)
+        btnStarExchange.setOnClickListener { showStarExchangeDialog() }
         tvUnlockCount = findViewById(R.id.tvUnlockCount)
         btnGuardStatus = findViewById(R.id.btnGuardStatus)
         btnPermissions = findViewById(R.id.btnPermissions)
+        btnDiag = findViewById(R.id.btnDiag)
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade)
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects)
         tvSubjectWarning = findViewById(R.id.tvSubjectWarning)
@@ -204,6 +257,7 @@ class MainActivity : AppCompatActivity() {
         btnPermissions.setOnClickListener {
             startActivity(Intent(this, PermissionActivity::class.java))
         }
+        btnDiag.setOnClickListener { showDiagDialog() }
 
         btnGuardStatus.setOnClickListener {
             if (RecoveryAccessibilityService.isServiceEnabled(this)) {
@@ -283,6 +337,8 @@ class MainActivity : AppCompatActivity() {
         }
         if (pref.verifyPin(gatePinInput.toString())) {
             pref.resetPinFailures()
+            // 家长验证通过：2 分钟内允许进入系统设置（调整权限/网络等），避免被自己的管控拦住
+            pref.allowSettingsTemporarily()
             gateVerified = true
             applyGate()
             if (pref.shouldForcePinChange()) {
@@ -315,6 +371,17 @@ class MainActivity : AppCompatActivity() {
             pref.setAutoStart(newVal)
             updateStatus()
             toast(if (newVal) "已开启开机自启" else "已关闭开机自启")
+        }
+
+        btnShowCountdown.setOnClickListener {
+            val newVal = !pref.isShowCountdown()
+            pref.setShowCountdown(newVal)
+            updateStatus()
+            if (newVal && !PermissionStatus.overlay(this)) {
+                toast("已开启，但缺少悬浮窗权限，暂时看不到角标")
+            } else {
+                toast(if (newVal) "已开启屏幕角标" else "已关闭屏幕角标")
+            }
         }
 
         btnEmergencyReboot.setOnClickListener {
@@ -386,8 +453,14 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnClearBank).setOnClickListener { showClearBankDialog() }
 
         findViewById<View>(R.id.btnStartTimer).setOnClickListener {
-            val minutes = pref.getWatchLimitMinutes()
+            val minutes = pref.effectiveUnlockMinutes()
+            if (minutes <= 0) {
+                toast("今天的时间已用完，明天再开始计时")
+                return@setOnClickListener
+            }
             pref.startTimer(minutes)
+            pref.consumeBonusMinutes()
+            Revival.schedule(this)
             startLockService()
             toast("计时开始：$minutes 分钟后锁屏")
             updateStatus()
@@ -399,8 +472,15 @@ class MainActivity : AppCompatActivity() {
                 pref.setHomeAliasEnabled(this, false)
             }
             pref.stopTimer()
-            stopService(Intent(this, LockService::class.java))
-            toast("计时已停止")
+            if (pref.isScheduleEnabled()) {
+                // 使用时段守护继续常驻，只是不再计时
+                toast("计时已停止，使用时段守护继续")
+                startLockService()
+            } else {
+                Revival.cancel(this)
+                stopService(Intent(this, LockService::class.java))
+                toast("计时已停止")
+            }
             updateStatus()
         }
 
@@ -488,6 +568,389 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showDailyLimitDialog() {
+        val values = intArrayOf(0, 60, 90, 120, 180)
+        val labels = arrayOf(
+            "关闭（不限总时长）", "60 分钟", "90 分钟", "120 分钟", "180 分钟", "自定义…"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("每日总时长上限")
+            .setItems(labels) { _, which ->
+                if (which == labels.size - 1) {
+                    showDailyLimitCustomDialog()
+                } else {
+                    pref.setDailyLimitMinutes(values[which])
+                    updateStatus()
+                    toast(
+                        if (values[which] == 0) "已关闭每日上限"
+                        else "每日上限设为 ${values[which]} 分钟"
+                    )
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showDailyLimitCustomDialog() {
+        val input = EditText(this).apply {
+            setText(pref.getDailyLimitMinutes().toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "1-720 分钟，填 0 表示不限制"
+            setPadding(32, 24, 32, 24)
+            setSelection(text.length)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("自定义每日总时长上限")
+            .setMessage("这是孩子一天内所有观看时长的总和，与「观看时长」（单次解锁多少分钟）是两回事。")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val minutes = input.text.toString().toIntOrNull()
+                if (minutes == null || minutes !in 0..720) {
+                    toast("请输入 0-720 之间的分钟数")
+                } else {
+                    pref.setDailyLimitMinutes(minutes)
+                    updateStatus()
+                    toast(if (minutes == 0) "已关闭每日上限" else "每日上限设为 $minutes 分钟")
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showStarExchangeDialog() {
+        val need = pref.getStarExchangeStars()
+        val reward = pref.getStarExchangeMinutes()
+        val stars = pref.getStars()
+        val pending = pref.getBonusPendingMinutes()
+        val message = buildString {
+            append("当前星星：$stars 颗\n")
+            append("当前比例：$need ⭐ = $reward 分钟\n")
+            if (pending > 0) append("待生效奖励：$pending 分钟（下次解锁自动并入）\n")
+            append("\n兑换后孩子下次答题解锁会多 $reward 分钟。")
+            if (stars < need) append("\n\n星星还不够，先让孩子继续答题攒一攒吧。")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("星星兑换时长（家长）")
+            .setMessage(message)
+            .setPositiveButton("兑换 $reward 分钟") { _, _ ->
+                if (pref.redeemStars()) {
+                    updateStatus()
+                    toast("已兑换 $reward 分钟，下次解锁生效")
+                } else {
+                    toast("星星不足：需要 $need 颗，当前 $stars 颗")
+                }
+            }
+            .setNeutralButton("修改比例") { _, _ -> showStarRateDialog() }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun showStarRateDialog() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 24, 32, 0)
+        }
+        val inputStars = EditText(this).apply {
+            setText(pref.getStarExchangeStars().toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "需要多少颗星星"
+        }
+        val inputMinutes = EditText(this).apply {
+            setText(pref.getStarExchangeMinutes().toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "兑换多少分钟"
+        }
+        container.addView(TextView(this).apply { text = "星星数量（1-999）" })
+        container.addView(inputStars)
+        container.addView(TextView(this).apply { text = "奖励分钟数（1-180）" })
+        container.addView(inputMinutes)
+        AlertDialog.Builder(this)
+            .setTitle("自定义兑换比例")
+            .setView(container)
+            .setPositiveButton("保存") { _, _ ->
+                val s = inputStars.text.toString().toIntOrNull()
+                val m = inputMinutes.text.toString().toIntOrNull()
+                if (s == null || m == null || s !in 1..999 || m !in 1..180) {
+                    toast("请输入 1-999 颗星、1-180 分钟")
+                } else {
+                    pref.setStarExchange(s, m)
+                    updateStatus()
+                    toast("兑换比例已保存：$s ⭐ = $m 分钟")
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showUsageHistoryDialog() {
+        val history = pref.getUsageHistory(7)
+        val total = history.sumOf { it.second }
+        val today = history.firstOrNull()?.first ?: ""
+        val sb = StringBuilder()
+        for ((date, millis) in history) {
+            val minutes = (millis + 59_999) / 60_000
+            val mark = if (date == today) "（今天）" else ""
+            sb.append(date).append(mark).append("  ")
+            if (millis <= 0) sb.append("未记录")
+            else sb.append(formatMinutes(minutes))
+            sb.append('\n')
+        }
+        sb.append("\n合计：").append(formatMinutes((total + 59_999) / 60_000))
+        val textView = TextView(this).apply {
+            text = sb.toString()
+            textSize = 14f
+            setTextIsSelectable(true)
+            setPadding(32, 24, 32, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("近 7 天使用记录")
+            .setView(textView)
+            .setPositiveButton("关闭", null)
+            .show()
+    }
+
+    private fun formatMinutes(minutes: Long): String {
+        return if (minutes < 60) "$minutes 分钟"
+        else "${minutes / 60} 小时 ${minutes % 60} 分钟"
+    }
+
+    private fun showExportBankDialog() {
+        val labels = arrayOfNulls<String>(IMPORTABLE_SUBJECTS.size)
+        for (i in labels.indices) {
+            labels[i] = Subject.label(IMPORTABLE_SUBJECTS[i])
+        }
+        AlertDialog.Builder(this)
+            .setTitle("导出题库 · 选择科目")
+            .setItems(labels) { _, whichSubject ->
+                val subject = IMPORTABLE_SUBJECTS[whichSubject]
+                AlertDialog.Builder(this)
+                    .setTitle("导出题库 · 选择年级")
+                    .setItems(gradeLabels()) { _, whichGrade ->
+                        val result = BankRepository.get(this).load(subject, whichGrade)
+                        if (result.entries.isEmpty()) {
+                            toast(
+                                getString(
+                                    R.string.export_empty,
+                                    Subject.label(subject), Grade.fullLabel(whichGrade)
+                                )
+                            )
+                        } else {
+                            pendingExportSubject = subject
+                            pendingExportGrade = whichGrade
+                            val name =
+                                "题库-${Subject.label(subject)}-${Grade.fullLabel(whichGrade)}.json"
+                            try {
+                                exportLauncher.launch(name)
+                            } catch (e: ActivityNotFoundException) {
+                                toast("没有可用的文件选择器")
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun onExportFilePicked(uri: Uri?) {
+        val subject = pendingExportSubject
+        val grade = pendingExportGrade
+        pendingExportSubject = null
+        pendingExportGrade = -1
+        if (uri == null || subject == null || grade < 0) return
+        try {
+            val entries = BankRepository.get(this).load(subject, grade).entries
+            val arr = JSONArray()
+            for (e in entries) {
+                val o = JSONObject()
+                o.put("k", e.k)
+                o.put("v", e.v)
+                arr.put(o)
+            }
+            val root = JSONObject()
+            root.put("subject", subject)
+            root.put("grade", grade)
+            root.put("entries", arr)
+
+            val output = contentResolver.openOutputStream(uri) ?: run {
+                toast(getString(R.string.export_failed))
+                return
+            }
+            BufferedWriter(OutputStreamWriter(output, StandardCharsets.UTF_8)).use { w ->
+                w.write(root.toString(2))
+            }
+            toast(getString(R.string.export_done, entries.size))
+        } catch (e: Exception) {
+            toast(getString(R.string.export_failed))
+        }
+    }
+
+    private val scheduleDayNames = arrayOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+    private fun showScheduleDialog() {
+        val labels = arrayOfNulls<String>(8)
+        labels[0] = if (pref.isScheduleEnabled())
+            "时段限制：已开启（点击关闭）"
+        else
+            "时段限制：已关闭（点击开启）"
+        for (day in 0..6) {
+            labels[day + 1] = "${scheduleDayNames[day]}：${pref.scheduleWindowLabel(day)}"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("使用时段（只在这些时间段内可用）")
+            .setItems(labels) { _, which ->
+                if (which == 0) {
+                    pref.setScheduleEnabled(!pref.isScheduleEnabled())
+                    updateStatus()
+                    if (pref.isScheduleEnabled()) {
+                        // 常驻守护：开启后立即把服务拉起来，不依赖「开始计时」
+                        startLockService()
+                        toast("已开启使用时段限制（常驻守护）")
+                    } else {
+                        if (pref.isLockedBySchedule()) {
+                            // 关掉时段限制时，别把孩子留在"时段锁"里出不来
+                            pref.setLocked(false)
+                            pref.setHomeAliasEnabled(this, false)
+                            KioskManager.syncLockState(this)
+                            startLockService()
+                        }
+                        toast("已关闭使用时段限制")
+                    }
+                } else {
+                    showScheduleDayDialog(which - 1)
+                }
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun showScheduleDayDialog(day: Int) {
+        val presets = arrayOf(
+            "不限（关闭这一天）",
+            "07:00–20:00",
+            "08:00–21:00",
+            "09:00–21:00",
+            "18:00–21:00",
+            "20:00–22:00",
+            "自定义…"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("${scheduleDayNames[day]} 使用时段")
+            .setItems(presets) { _, which ->
+                when (which) {
+                    0 -> {
+                        pref.clearScheduleDay(day)
+                        updateStatus()
+                        toast("${scheduleDayNames[day]}：已取消限制")
+                    }
+                    6 -> promptCustomScheduleWindow(day)
+                    else -> {
+                        val (start, end) = parsePresetWindow(presets[which])
+                        pref.setScheduleWindow(day, start, end)
+                        if (!pref.isScheduleEnabled()) {
+                            pref.setScheduleEnabled(true)
+                            startLockService()
+                        }
+                        updateStatus()
+                        toast("${scheduleDayNames[day]}：${pref.scheduleWindowLabel(day)}")
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun parsePresetWindow(text: String): Pair<Int, Int> {
+        val parts = text.split("–")
+        val start = parseTimeToMinutes(parts.getOrNull(0) ?: "") ?: (8 * 60)
+        val end = parseTimeToMinutes(parts.getOrNull(1) ?: "") ?: (21 * 60)
+        return start to end
+    }
+
+    private fun promptCustomScheduleWindow(day: Int) {
+        val startInit = pref.getScheduleStart(day).takeIf { it >= 0 } ?: (8 * 60)
+        promptTime("${scheduleDayNames[day]} 开始时间（HH:mm）", startInit) { start ->
+            val endInit = pref.getScheduleEnd(day).takeIf { it >= 0 } ?: (21 * 60)
+            promptTime("${scheduleDayNames[day]} 结束时间（HH:mm，可早于开始表示跨零点）", endInit) { end ->
+                if (start == end) {
+                    toast("开始时间和结束时间不能相同")
+                } else {
+                    pref.setScheduleWindow(day, start, end)
+                    if (!pref.isScheduleEnabled()) {
+                        pref.setScheduleEnabled(true)
+                        startLockService()
+                    }
+                    updateStatus()
+                    toast("${scheduleDayNames[day]}：${pref.scheduleWindowLabel(day)}")
+                }
+            }
+        }
+    }
+
+    private fun promptTime(title: String, initialMinutes: Int, onPicked: (Int) -> Unit) {
+        val input = EditText(this).apply {
+            setText(String.format(java.util.Locale.US, "%02d:%02d", initialMinutes / 60, initialMinutes % 60))
+            inputType = InputType.TYPE_CLASS_DATETIME
+            setSelection(text.length)
+            setPadding(32, 24, 32, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(input)
+            .setPositiveButton("确定") { _, _ ->
+                val minutes = parseTimeToMinutes(input.text.toString())
+                if (minutes == null) {
+                    toast("时间格式不对，请用 HH:mm，例如 08:30")
+                } else {
+                    onPicked(minutes)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun parseTimeToMinutes(text: String): Int? {
+        val m = Regex("^([01]?\\d|2[0-3]):([0-5]\\d)$").find(text.trim()) ?: return null
+        return m.groupValues[1].toInt() * 60 + m.groupValues[2].toInt()
+    }
+
+    private fun showDiagDialog() {
+        val lines = Diag.read(this, 300)
+        val content = if (lines.isEmpty())
+            "暂无日志。出现锁不住 / 不锁屏 / 声音没停等问题后，这里会记录关键事件。\n\n日志文件：${Diag.path(this)}"
+        else
+            lines.joinToString("\n")
+        val textView = TextView(this).apply {
+            text = content
+            textSize = 12f
+            setTextIsSelectable(true)
+            setPadding(32, 24, 32, 24)
+        }
+        val scroll = ScrollView(this).apply { addView(textView) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("诊断日志（最近 300 行）")
+            .setView(scroll)
+            .setPositiveButton("复制全部") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cm?.setPrimaryClip(ClipData.newPlainText("kidslock-diagnostics", content))
+                toast("日志已复制到剪贴板")
+            }
+            .setNeutralButton("清空") { _, _ ->
+                Diag.clear(this)
+                toast("日志已清空")
+            }
+            .setNegativeButton("关闭", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.85f).toInt(),
+                (resources.displayMetrics.heightPixels * 0.70f).toInt()
+            )
+        }
+        dialog.show()
+    }
+
     private fun updateStatus() {
         val guardOn = RecoveryAccessibilityService.isServiceEnabled(this)
         val owner = KioskManager.isDeviceOwner(this)
@@ -505,10 +968,46 @@ class MainActivity : AppCompatActivity() {
         btnPermissions.text = if (permMissingCount == 0)
             getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissingCount)
 
+        // 一个拦截能力都没有时明确说「已失效」，而不是只显示缺几项
+        val monitoring = PermissionStatus.overlay(this) ||
+                PermissionStatus.usageAccess(this) ||
+                PermissionStatus.accessibility(this)
+        if (!monitoring) {
+            btnPermissions.text = "权限：管控已失效（缺少悬浮窗/无障碍/使用情况）点此修复"
+        }
+
         btnAutoStart.text = if (pref.isAutoStart()) "开机自启：已开启" else "开机自启：已关闭"
         btnEmergencyReboot.text =
             if (pref.isEmergencyRebootUnlock()) "紧急重启解锁：已开启" else "紧急重启解锁：已关闭"
+        btnShowCountdown.text =
+            if (pref.isShowCountdown()) "屏幕角标：已开启" else "屏幕角标：已关闭"
         tvWatchTime.text = "观看时长：${pref.getWatchLimitMinutes()} 分钟"
+        val dailyLimit = pref.getDailyLimitMinutes()
+        val usedMinutes = (pref.getDailyUsedMs() + 59_999) / 60_000
+        tvDailyUsage.text = if (dailyLimit <= 0)
+            "今日已用：$usedMinutes 分钟（未设上限）"
+        else
+            "今日已用：$usedMinutes / $dailyLimit 分钟"
+        val pendingBonus = pref.getBonusPendingMinutes()
+        if (pendingBonus > 0) {
+            tvDailyUsage.append(" · 奖励待生效 +$pendingBonus 分钟")
+        }
+        btnDailyLimit.text = if (dailyLimit <= 0) "每日总时长上限：未开启" else "每日总时长上限：$dailyLimit 分钟"
+        btnStarExchange.text =
+            "星星兑换：${pref.getStarExchangeStars()} ⭐ = ${pref.getStarExchangeMinutes()} 分钟"
+        tvSchedule.text = if (!pref.isScheduleEnabled()) {
+            "使用时段：未开启"
+        } else {
+            val today = pref.scheduleDayIndex()
+            val suffix = when {
+                pref.isScheduleBypassActive() -> " · 家长临时放行中"
+                !pref.isWithinSchedule() -> " · 当前不在可用时段"
+                else -> ""
+            }
+            "使用时段：今天 ${pref.scheduleWindowLabel(today)}$suffix"
+        }
+        btnSchedule.text =
+            if (pref.isScheduleEnabled()) "使用时段限制：已开启" else "使用时段限制：未开启"
         tvUnlockCount.text = "解锁题数：${pref.unlockCount} 道连续答对"
 
         tvQuestionGrade.text = "年级：${Grade.fullLabel(pref.grade)}"
@@ -559,7 +1058,9 @@ class MainActivity : AppCompatActivity() {
             tvAccuracy.visibility = View.GONE
             btnResetStats.visibility = View.GONE
         } else {
-            tvAccuracy.text = getString(R.string.accuracy_text, acc)
+            tvAccuracy.text = getString(R.string.accuracy_text, acc) +
+                    " · ⭐ ${pref.getStars()} 颗 · 最高连对 ${pref.getBestCombo()} 题" +
+                    " · 错题待复习 ${ReviewStore.dueCount(this)} 道"
             tvAccuracy.visibility = View.VISIBLE
             btnResetStats.visibility = View.VISIBLE
         }

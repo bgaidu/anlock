@@ -57,12 +57,19 @@ class TimerManager(
     private var screenOn = true
     private var screenReceiver: BroadcastReceiver? = null
     private var tickRunnable: Runnable? = null
+    private var pendingDailyMs = 0L
 
     fun start() {
         tickRunnable?.let { handler.removeCallbacks(it) }
         tickRunnable = null
         pref.deductOfflineIfAny()
         remainingMillis = pref.getRemainingMillis()
+        // 今日额度低于剩余时长时按额度夹紧（家长中途调小上限也能立刻生效）
+        val dailyRemaining = pref.getDailyRemainingMs()
+        if (remainingMillis > dailyRemaining) {
+            remainingMillis = dailyRemaining.coerceAtLeast(0)
+            pref.persistTimer(remainingMillis)
+        }
         scheduleExpiryAlarm(context, remainingMillis)
         lastTickElapsed = SystemClock.elapsedRealtime()
         persistCountdown = 0
@@ -75,13 +82,18 @@ class TimerManager(
                 val now = SystemClock.elapsedRealtime()
                 val dt = now - lastTickElapsed
                 lastTickElapsed = now
-                if (dt > 0 && screenOn) remainingMillis -= dt
+                if (dt > 0 && screenOn) {
+                    remainingMillis -= dt
+                    pendingDailyMs += dt
+                }
                 if (remainingMillis <= 0) {
+                    flushDaily()
                     callback.onExpired()
                     return
                 }
                 if (--persistCountdown <= 0) {
                     pref.persistTimer(remainingMillis)
+                    flushDaily()
                     persistCountdown = PERSIST_EVERY_TICKS
                 }
                 callback.onTick(remainingMillis)
@@ -91,9 +103,17 @@ class TimerManager(
         handler.post(tickRunnable!!)
     }
 
+    /** 把这一批亮屏使用时长累加到「今日已用」，避免每秒写一次 SharedPreferences。 */
+    private fun flushDaily() {
+        if (pendingDailyMs <= 0) return
+        pref.addDailyUsedMs(pendingDailyMs)
+        pendingDailyMs = 0
+    }
+
     fun stop() {
         tickRunnable?.let { handler.removeCallbacks(it) }
         tickRunnable = null
+        flushDaily()
     }
 
     fun registerScreenListener() {

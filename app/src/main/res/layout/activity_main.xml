@@ -151,6 +151,19 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 屏幕角标：计时中在右上角显示剩余时间（需要悬浮窗权限） -->
+        <Button
+            android:id="@+id/btnShowCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 观看时长 -->
         <TextView
             android:id="@+id/tvWatchTime"
@@ -159,6 +172,76 @@
             android:textColor="@color/text_primary"
             android:textSize="@dimen/text_body"
             android:layout_marginBottom="@dimen/spacing_small" />
+
+        <!-- 今日已用时长（每日总时长上限的实时进度） -->
+        <TextView
+            android:id="@+id/tvDailyUsage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body"
+            android:layout_marginBottom="@dimen/spacing_small" />
+
+        <!-- 每日总时长上限：点击选择 关闭 / 60 / 90 / 120 / 180 分钟 -->
+        <Button
+            android:id="@+id/btnDailyLimit"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 近 7 天使用记录：按天展示屏幕使用时长（每日上限的历史） -->
+        <Button
+            android:id="@+id/btnUsageHistory"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_usage_history"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 使用时段：只在允许的时间段内可用（家长 PIN 可临时放行） -->
+        <TextView
+            android:id="@+id/tvSchedule"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body"
+            android:layout_marginBottom="@dimen/spacing_small" />
+
+        <Button
+            android:id="@+id/btnSchedule"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 星星兑换：家长自定义「多少颗星换多少分钟」，兑换后下次解锁生效 -->
+        <Button
+            android:id="@+id/btnStarExchange"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -552,6 +635,19 @@
             android:clickable="true" />
 
         <Button
+            android:id="@+id/btnExportBank"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_export_bank"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <Button
             android:id="@+id/btnClearBank"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
@@ -571,6 +667,20 @@
             android:layout_height="@dimen/btn_height"
             android:layout_marginTop="@dimen/spacing_medium"
             android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 诊断日志：家长可查看最近 300 行关键事件（锁屏/解锁/权限变化/复活） -->
+        <Button
+            android:id="@+id/btnDiag"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="查看诊断日志"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"

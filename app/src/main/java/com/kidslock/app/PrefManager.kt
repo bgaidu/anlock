@@ -9,6 +9,10 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import java.math.BigInteger
 import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class PrefManager(private val context: Context) {
 
@@ -44,8 +48,34 @@ class PrefManager(private val context: Context) {
         private val SUBJECT_ORDER = arrayOf("pinyin", "math", "english", "ciyu")
         private const val KEY_STAT_CORRECT = "stat_correct"
         private const val KEY_STAT_TOTAL = "stat_total"
+        private const val KEY_STARS = "stars"
+        private const val KEY_STAT_BEST_COMBO = "stat_best_combo"
         private const val KEY_LEGACY_MIGRATED = "legacy_defaults_migrated"
         private const val KEY_EMERGENCY_REBOOT_UNLOCK = "emergency_reboot_unlock"
+        private const val KEY_SHOW_COUNTDOWN = "show_countdown"
+        private const val DEFAULT_SHOW_COUNTDOWN = true
+        private const val KEY_SETTINGS_ALLOW_UNTIL = "settings_allow_until"
+        private const val KEY_DAILY_LIMIT_MIN = "daily_limit_min"
+        private const val KEY_DAILY_USED_MS = "daily_used_ms"
+        private const val KEY_DAILY_DATE = "daily_date"
+        private const val KEY_DAILY_BYPASS_UNTIL = "daily_bypass_until"
+        private const val KEY_USAGE_PREFIX = "usage_"
+        private const val DEFAULT_DAILY_LIMIT_MIN = 0 // 0 = 不限制，保持旧行为
+        // 使用时段：按周一~周日（下标 0=周一）存起止分钟数，-1 表示该天不限
+        private const val KEY_SCHEDULE_ENABLED = "schedule_enabled"
+        private const val KEY_SCHEDULE_START_PREFIX = "schedule_start_"
+        private const val KEY_SCHEDULE_END_PREFIX = "schedule_end_"
+        private const val KEY_SCHEDULE_BYPASS_UNTIL = "schedule_bypass_until"
+        private const val DEFAULT_SCHEDULE_START_MIN = 8 * 60
+        private const val DEFAULT_SCHEDULE_END_MIN = 21 * 60
+        private const val KEY_LOCKED_BY_SCHEDULE = "locked_by_schedule"
+        // 星星兑换：家长可自定义「多少颗星换多少分钟」
+        private const val KEY_STAR_EXCHANGE_STARS = "star_exchange_stars"
+        private const val KEY_STAR_EXCHANGE_MINUTES = "star_exchange_minutes"
+        private const val KEY_BONUS_PENDING_MIN = "bonus_pending_min"
+        private const val KEY_DAILY_BONUS_MIN = "daily_bonus_min"
+        private const val DEFAULT_STAR_EXCHANGE_STARS = 10
+        private const val DEFAULT_STAR_EXCHANGE_MINUTES = 10
     }
 
     private val appContext: Context = context.applicationContext
@@ -84,6 +114,263 @@ class PrefManager(private val context: Context) {
         prefs.edit().putBoolean(KEY_EMERGENCY_REBOOT_UNLOCK, enabled).apply()
     }
 
+    // 屏幕角标：计时中在右上角显示剩余时间（需要悬浮窗权限），默认开启
+    fun isShowCountdown(): Boolean = prefs.getBoolean(KEY_SHOW_COUNTDOWN, DEFAULT_SHOW_COUNTDOWN)
+
+    fun setShowCountdown(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_COUNTDOWN, enabled).apply()
+    }
+
+    /**
+     * 管控期间拦截系统设置，家长通过 PIN 后临时放行。
+     * 用 elapsedRealtime（开机单调时钟）而不是墙钟，改系统时间无法延长放行窗口。
+     */
+    fun allowSettingsTemporarily(durationMs: Long = 2 * 60 * 1000L) {
+        prefs.edit()
+            .putLong(KEY_SETTINGS_ALLOW_UNTIL, SystemClock.elapsedRealtime() + durationMs)
+            .apply()
+    }
+
+    fun isSettingsAllowedNow(): Boolean {
+        val until = prefs.getLong(KEY_SETTINGS_ALLOW_UNTIL, 0)
+        return until > 0 && SystemClock.elapsedRealtime() < until
+    }
+
+    // ===== 每日总时长上限 =====
+    // 0 表示不限制（默认，避免升级后静默改变老用户行为）。
+    fun getDailyLimitMinutes(): Int = prefs.getInt(KEY_DAILY_LIMIT_MIN, DEFAULT_DAILY_LIMIT_MIN)
+
+    fun setDailyLimitMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_DAILY_LIMIT_MIN, minutes.coerceIn(0, 12 * 60)).apply()
+    }
+
+    fun getDailyUsedMs(): Long {
+        rolloverDailyIfNeeded()
+        return prefs.getLong(KEY_DAILY_USED_MS, 0)
+    }
+
+    fun addDailyUsedMs(millis: Long) {
+        if (millis <= 0) return
+        rolloverDailyIfNeeded()
+        val used = prefs.getLong(KEY_DAILY_USED_MS, 0) + millis
+        prefs.edit()
+            .putLong(KEY_DAILY_USED_MS, used)
+            // 同步一份按天的历史记录，供「近 7 天使用记录」展示
+            .putLong(KEY_USAGE_PREFIX + todayKey(), used)
+            .apply()
+    }
+
+    /** 近 N 天使用记录，按日期倒序：("2026-11-11", 毫秒)。 */
+    fun getUsageHistory(days: Int = 7): List<Pair<String, Long>> {
+        rolloverDailyIfNeeded()
+        val format = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val calendar = Calendar.getInstance()
+        val out = ArrayList<Pair<String, Long>>(days)
+        for (i in 0 until days) {
+            val key = format.format(calendar.time)
+            out.add(key to prefs.getLong(KEY_USAGE_PREFIX + key, 0))
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        return out
+    }
+
+    /** 今天还能用多少毫秒；未开启上限时返回 Long.MAX_VALUE。 */
+    fun getDailyRemainingMs(): Long {
+        if (isDailyBypassActive()) return Long.MAX_VALUE
+        val limit = getDailyLimitMinutes()
+        if (limit <= 0) return Long.MAX_VALUE
+        // 星星兑换/家长奖励的时长会把今天的总上限一起抬高
+        val allowanceMin = limit + getDailyBonusMinutes() + getBonusPendingMinutes()
+        return (allowanceMin * 60_000L - getDailyUsedMs()).coerceAtLeast(0)
+    }
+
+    // ===== 星星兑换时长 =====
+    fun getStarExchangeStars(): Int =
+        prefs.getInt(KEY_STAR_EXCHANGE_STARS, DEFAULT_STAR_EXCHANGE_STARS).coerceAtLeast(1)
+
+    fun getStarExchangeMinutes(): Int =
+        prefs.getInt(KEY_STAR_EXCHANGE_MINUTES, DEFAULT_STAR_EXCHANGE_MINUTES).coerceAtLeast(1)
+
+    fun setStarExchange(stars: Int, minutes: Int) {
+        prefs.edit()
+            .putInt(KEY_STAR_EXCHANGE_STARS, stars.coerceIn(1, 999))
+            .putInt(KEY_STAR_EXCHANGE_MINUTES, minutes.coerceIn(1, 180))
+            .apply()
+    }
+
+    /**
+     * 兑换成功：扣星星，奖励时长进入「待生效」池，下次解锁时并入本次时长。
+     * 同时把奖励计入今日额度，避免开了每日上限时被立刻夹回去。
+     */
+    fun redeemStars(): Boolean {
+        val need = getStarExchangeStars()
+        val stars = getStars()
+        if (stars < need) return false
+        val minutes = getStarExchangeMinutes()
+        prefs.edit()
+            .putInt(KEY_STARS, stars - need)
+            .putInt(KEY_BONUS_PENDING_MIN, getBonusPendingMinutes() + minutes)
+            .apply()
+        return true
+    }
+
+    fun getBonusPendingMinutes(): Int = prefs.getInt(KEY_BONUS_PENDING_MIN, 0)
+
+    /** 解锁时调用：把「待生效」奖励转成今天的额度。 */
+    fun consumeBonusMinutes(): Int {
+        val pending = getBonusPendingMinutes()
+        if (pending <= 0) return 0
+        rolloverDailyIfNeeded()
+        prefs.edit()
+            .putInt(KEY_BONUS_PENDING_MIN, 0)
+            .putInt(KEY_DAILY_BONUS_MIN, getDailyBonusMinutes() + pending)
+            .apply()
+        return pending
+    }
+
+    fun getDailyBonusMinutes(): Int = prefs.getInt(KEY_DAILY_BONUS_MIN, 0)
+
+    /**
+     * 家长 PIN 放行：临时不受每日上限约束（一次性，过点自动失效）。
+     * 用于家长自己要继续使用、或孩子今天已经用完但确有需要的情况。
+     */
+    fun grantDailyBypass(minutes: Int) {
+        if (minutes <= 0) return
+        prefs.edit()
+            .putLong(KEY_DAILY_BYPASS_UNTIL, SystemClock.elapsedRealtime() + minutes * 60_000L)
+            .apply()
+    }
+
+    fun isDailyBypassActive(): Boolean {
+        val until = prefs.getLong(KEY_DAILY_BYPASS_UNTIL, 0)
+        return until > 0 && SystemClock.elapsedRealtime() < until
+    }
+
+    // ===== 使用时段（周一~周日） =====
+    // 每天允许使用的起止时间，-1 表示该天不限制；跨零点（如 20:00–07:00）也支持。
+    fun isScheduleEnabled(): Boolean = prefs.getBoolean(KEY_SCHEDULE_ENABLED, false)
+
+    fun setScheduleEnabled(enabled: Boolean) {
+        val editor = prefs.edit().putBoolean(KEY_SCHEDULE_ENABLED, enabled)
+        if (enabled && !hasAnyScheduleWindow()) {
+            // 第一次开启时给一个合理的默认时段，避免「开了但等于没开」
+            for (day in 0..6) {
+                editor.putInt(KEY_SCHEDULE_START_PREFIX + day, DEFAULT_SCHEDULE_START_MIN)
+                editor.putInt(KEY_SCHEDULE_END_PREFIX + day, DEFAULT_SCHEDULE_END_MIN)
+            }
+        }
+        editor.apply()
+    }
+
+    fun getScheduleStart(day: Int): Int {
+        if (day !in 0..6) return -1
+        return prefs.getInt(KEY_SCHEDULE_START_PREFIX + day, -1)
+    }
+
+    fun getScheduleEnd(day: Int): Int {
+        if (day !in 0..6) return -1
+        return prefs.getInt(KEY_SCHEDULE_END_PREFIX + day, -1)
+    }
+
+    /** start/end 以「当天 0 点起的分钟数」表示；传 -1 或非法值表示关闭该天限制。 */
+    fun setScheduleWindow(day: Int, startMin: Int, endMin: Int) {
+        if (day !in 0..6) return
+        val valid = startMin in 0..1439 && endMin in 0..1439 && startMin != endMin
+        prefs.edit().apply {
+            if (valid) {
+                putInt(KEY_SCHEDULE_START_PREFIX + day, startMin)
+                putInt(KEY_SCHEDULE_END_PREFIX + day, endMin)
+            } else {
+                remove(KEY_SCHEDULE_START_PREFIX + day)
+                remove(KEY_SCHEDULE_END_PREFIX + day)
+            }
+        }.apply()
+    }
+
+    fun clearScheduleDay(day: Int) {
+        setScheduleWindow(day, -1, -1)
+    }
+
+    /** 0=周一 … 6=周日 */
+    fun scheduleDayIndex(now: Calendar = Calendar.getInstance()): Int {
+        val dow = now.get(Calendar.DAY_OF_WEEK) // 1=周日 … 7=周六
+        return if (dow == Calendar.SUNDAY) 6 else dow - 2
+    }
+
+    /** 该天时段的中文描述，例如 "08:00–21:00" / "不限"。 */
+    fun scheduleWindowLabel(day: Int): String {
+        val start = getScheduleStart(day)
+        val end = getScheduleEnd(day)
+        if (start < 0 || end < 0) return "不限"
+        return formatMinuteOfDay(start) + "–" + formatMinuteOfDay(end)
+    }
+
+    /** 现在是否处于允许使用的时段内（未开启或当天不限时恒为 true）。 */
+    fun isWithinSchedule(now: Calendar = Calendar.getInstance()): Boolean {
+        if (!isScheduleEnabled()) return true
+        if (isScheduleBypassActive()) return true
+        val day = scheduleDayIndex(now)
+        val start = getScheduleStart(day)
+        val end = getScheduleEnd(day)
+        if (start < 0 || end < 0) return true
+        val minutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        return if (start <= end) {
+            minutes in start until end
+        } else {
+            // 跨零点：20:00–07:00
+            minutes >= start || minutes < end
+        }
+    }
+
+    /** 家长 PIN 放行：临时跳过使用时段限制。 */
+    fun grantScheduleBypass(durationMs: Long = 30 * 60 * 1000L) {
+        prefs.edit()
+            .putLong(KEY_SCHEDULE_BYPASS_UNTIL, SystemClock.elapsedRealtime() + durationMs)
+            .apply()
+    }
+
+    fun isScheduleBypassActive(): Boolean {
+        val until = prefs.getLong(KEY_SCHEDULE_BYPASS_UNTIL, 0)
+        return until > 0 && SystemClock.elapsedRealtime() < until
+    }
+
+    private fun hasAnyScheduleWindow(): Boolean {
+        for (day in 0..6) {
+            if (getScheduleStart(day) >= 0 && getScheduleEnd(day) >= 0) return true
+        }
+        return false
+    }
+
+    private fun formatMinuteOfDay(minutes: Int): String {
+        return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
+    /** 本次解锁实际可用分钟数：同时受单次观看时长、今日剩余额度与星星奖励约束。 */
+    fun effectiveUnlockMinutes(): Int {
+        val bonus = getBonusPendingMinutes()
+        val dailyRemaining = getDailyRemainingMs()
+        if (dailyRemaining <= 0) return 0
+        val base = getWatchLimitMinutes() + bonus
+        if (dailyRemaining == Long.MAX_VALUE) return base
+        // 向上取整到分钟，精确到秒的余量由 TimerManager 每秒扣减时再夹紧
+        val minutes = ((dailyRemaining + 59_999) / 60_000).toInt()
+        return minOf(base, minutes).coerceAtLeast(1)
+    }
+
+    private fun rolloverDailyIfNeeded() {
+        val today = todayKey()
+        if (prefs.getString(KEY_DAILY_DATE, "") != today) {
+            prefs.edit()
+                .putString(KEY_DAILY_DATE, today)
+                .putLong(KEY_DAILY_USED_MS, 0)
+                .putInt(KEY_DAILY_BONUS_MIN, 0)
+                .apply()
+        }
+    }
+
+    private fun todayKey(): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
     fun getWatchLimitMinutes(): Int = prefs.getInt(KEY_WATCH_LIMIT_MIN, DEFAULT_WATCH_LIMIT_MIN)
 
     fun setWatchLimitMinutes(minutes: Int) {
@@ -93,8 +380,18 @@ class PrefManager(private val context: Context) {
     fun isLocked(): Boolean = prefs.getBoolean(KEY_IS_LOCKED, false)
 
     fun setLocked(locked: Boolean) {
-        prefs.edit().putBoolean(KEY_IS_LOCKED, locked).apply()
+        val editor = prefs.edit().putBoolean(KEY_IS_LOCKED, locked)
+        // 解锁时顺手清掉锁屏原因，避免下次误判为「时段锁」自动放行
+        if (!locked) editor.remove(KEY_LOCKED_BY_SCHEDULE)
+        editor.apply()
     }
+
+    /** 标记这次锁定是「不在使用时段」触发的：时段恢复后可以自动放行。 */
+    fun setLockedBySchedule(bySchedule: Boolean) {
+        prefs.edit().putBoolean(KEY_LOCKED_BY_SCHEDULE, bySchedule).apply()
+    }
+
+    fun isLockedBySchedule(): Boolean = prefs.getBoolean(KEY_LOCKED_BY_SCHEDULE, false)
 
     fun isTimerActive(): Boolean = prefs.getBoolean(KEY_TIMER_ACTIVE, false)
 
@@ -140,13 +437,17 @@ class PrefManager(private val context: Context) {
             val wallStamp = prefs.getLong(KEY_TIMER_STAMP_WALL, 0)
             var remaining = getRemainingMillis()
             val unbilled = if (wallStamp > 0 && remaining > 0) queryForegroundMillisSince(wallStamp) else 0
-            if (unbilled > 0) remaining = maxOf(0L, remaining - unbilled)
+            if (unbilled > 0) {
+                remaining = maxOf(0L, remaining - unbilled)
+                addDailyUsedMs(minOf(unbilled, getRemainingMillis()))
+            }
             persistTimer(remaining)
             return
         }
         val awake = SystemClock.uptimeMillis() - prefs.getLong(KEY_TIMER_STAMP_UPTIME, 0)
         if (awake <= 0) return
         val remaining = getRemainingMillis() - awake
+        addDailyUsedMs(minOf(awake, getRemainingMillis()))
         persistTimer(maxOf(0L, remaining))
     }
 
@@ -383,8 +684,29 @@ class PrefManager(private val context: Context) {
         prefs.edit().putInt(KEY_STAT_TOTAL, total).putInt(KEY_STAT_CORRECT, c).apply()
     }
 
+    // ===== 星星奖励 / 连对 =====
+    // 星星只是正向激励，不直接兑换时长，避免绕过家长设定的额度。
+    fun getStars(): Int = prefs.getInt(KEY_STARS, 0)
+
+    fun addStars(count: Int) {
+        if (count <= 0) return
+        prefs.edit().putInt(KEY_STARS, getStars() + count).apply()
+    }
+
+    fun getBestCombo(): Int = prefs.getInt(KEY_STAT_BEST_COMBO, 0)
+
+    fun recordCombo(combo: Int) {
+        if (combo > getBestCombo()) {
+            prefs.edit().putInt(KEY_STAT_BEST_COMBO, combo).apply()
+        }
+    }
+
     fun resetStats() {
-        prefs.edit().remove(KEY_STAT_TOTAL).remove(KEY_STAT_CORRECT).apply()
+        prefs.edit()
+            .remove(KEY_STAT_TOTAL)
+            .remove(KEY_STAT_CORRECT)
+            .remove(KEY_STAT_BEST_COMBO)
+            .apply()
     }
 
     fun getStatTotal(): Int = prefs.getInt(KEY_STAT_TOTAL, 0)

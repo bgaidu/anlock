@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 剩余时间角标背景：半透明深色胶囊，避免遮挡画面又能看清 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#CC0D1B2A" />
+    <corners android:radius="24dp" />
+    <stroke android:width="1dp" android:color="#66778DA9" />
+</shape>

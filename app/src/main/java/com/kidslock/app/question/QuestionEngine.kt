@@ -143,8 +143,24 @@ class QuestionEngine private constructor(
     private val recent = RecentQuestionQueue()
     private val random = Random()
     private var schedulePos = 0
+    private val reviewQueue = ArrayDeque<Question>()
+
+    init {
+        // 到期错题优先复习：最多占本次解锁题量的 1/3（至少 1 道）
+        val total = schedule.size
+        val limit = ((total / 3).coerceAtLeast(1)).coerceAtMost(5)
+        reviewQueue.addAll(ReviewStore.dueQuestions(context, limit))
+    }
+
+    /** 把答题结果写进错题池 / SM-2 复习计划。 */
+    fun recordResult(q: Question, correct: Boolean) {
+        ReviewStore.recordResult(context, q, correct)
+    }
 
     fun nextQuestion(): Question {
+        if (reviewQueue.isNotEmpty()) {
+            return reviewQueue.removeFirst()
+        }
         val q = nextQuestion(false)
         if (q != null) return q
         val relaxed = nextQuestion(true) ?: throw IllegalStateException("nextQuestion returned null")

@@ -22,6 +22,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
+        android:name=".KidsLockApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -107,6 +108,19 @@
             android:name=".AlarmReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <!-- 复活闹钟：计时中/锁屏中每 15 分钟唤醒一次服务（不精确闹钟，无需额外权限） -->
+        <receiver
+            android:name=".ReviveReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- 复活作业：系统持久化定时任务，开机后由系统重新排程，作为开机广播被拦截时的兜底 -->
+        <service
+            android:name=".WatchdogJobService"
+            android:enabled="true"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- 守护无障碍服务：系统开机自动绑定已启用的无障碍服务（不受自启动拦截），
              进程被杀也会被系统重新绑定——免 ROOT 设备上的开机自启与复活通道 -->

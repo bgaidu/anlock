@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
@@ -38,13 +39,28 @@ class LockService : Service() {
     private lateinit var timerManager: TimerManager
     private lateinit var lockGuard: LockGuard
     private lateinit var overlayManager: LockOverlayManager
+    private lateinit var countdownOverlay: CountdownOverlay
+    private var lastCapabilityCheck = 0L
+    private var lastMonitoring: Boolean? = null
+    private val mediaTick = object : Runnable {
+        override fun run() {
+            if (pref.isLocked()) {
+                MediaPause.enforce(this@LockService)
+                handler.postDelayed(this, 3000)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         pref = PrefManager(this)
+        countdownOverlay = CountdownOverlay(this)
         timerManager = TimerManager(this, pref, object : TimerManager.TimerCallback {
             override fun onTick(remainingMillis: Long) {
                 updateNotification()
+                updateCountdown(remainingMillis)
+                checkCapabilities()
+                enforceSchedule()
             }
             override fun onExpired() {
                 triggerLock()
@@ -72,6 +88,9 @@ class LockService : Service() {
         KioskManager.applyOwnerPolicies(this)
         KioskManager.syncLockState(this)
         pref.deductOfflineIfAny()
+        GuardNotifier.check(this)
+        Revival.schedule(this)
+        Diag.i("Service", "created timer=${pref.isTimerActive()} locked=${pref.isLocked()}")
         Log.i(TAG, "LockService created")
     }
 
@@ -88,20 +107,28 @@ class LockService : Service() {
             if (!LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
                 overlayManager.showOverlayIfPermitted()
             }
+            if (pref.isScheduleEnabled() || pref.isLocked()) startScheduleGuard()
             return START_STICKY
         }
 
         if (pref.isLocked()) {
             Log.i(TAG, "Device locked, starting lock watchdog")
+            countdownOverlay.hide()
+            MediaPause.pause(this)
+            handler.removeCallbacks(mediaTick)
+            handler.postDelayed(mediaTick, 3000)
             lockGuard.start()
+            startScheduleGuard()
             if (!LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
                 overlayManager.showOverlayIfPermitted()
             }
             return START_STICKY
         }
 
-        if (!pref.isTimerActive()) {
-            Log.i(TAG, "Timer not active, stopping service")
+        if (!pref.isTimerActive() && !pref.isScheduleEnabled()) {
+            Log.i(TAG, "Timer not active and schedule off, stopping service")
+            countdownOverlay.hide()
+            Revival.cancel(this)
             stopForeground(true)
             stopSelf()
             return START_NOT_STICKY
@@ -113,20 +140,105 @@ class LockService : Service() {
             return START_STICKY
         }
 
-        timerManager.start()
+        if (pref.isTimerActive()) {
+            timerManager.start()
+            enforceSchedule()
+            updateCountdown(pref.getRemainingMillis())
+        }
+        if (pref.isScheduleEnabled()) {
+            // 常驻守护：即使没有在计时，也按时段锁屏 / 到点自动放行
+            startScheduleGuard()
+            updateNotification()
+        }
         return START_STICKY
     }
 
-    private fun triggerLock() {
-        Log.i(TAG, "Triggering lock screen!")
+    /** 使用时段外强制锁屏（家长 PIN 可临时放行）。 */
+    private fun enforceSchedule() {
+        if (pref.isLocked()) return
+        if (!pref.isScheduleEnabled()) return
+        if (pref.isWithinSchedule()) return
+        Diag.i("Schedule", "outside allowed window, locking")
+        triggerLock(bySchedule = true)
+    }
+
+    private val scheduleTick = object : Runnable {
+        override fun run() {
+            if (!pref.isScheduleEnabled()) {
+                // 家长关掉时段限制后，不再常驻
+                if (!pref.isLocked() && !pref.isTimerActive()) {
+                    handler.removeCallbacks(this)
+                    stopForeground(true)
+                    stopSelf()
+                }
+                return
+            }
+            if (pref.isLocked()) {
+                if (pref.isLockedBySchedule() && pref.isWithinSchedule() &&
+                    (pref.effectiveUnlockMinutes() > 0 ||
+                            (pref.isTimerActive() && pref.getRemainingMillis() > 0))
+                ) {
+                    releaseScheduleLock()
+                }
+            } else if (!pref.isWithinSchedule()) {
+                triggerLock(bySchedule = true)
+            }
+            if (pref.isScheduleEnabled() || pref.isLocked() || pref.isTimerActive()) {
+                handler.postDelayed(this, 5000)
+            }
+        }
+    }
+
+    private fun startScheduleGuard() {
+        handler.removeCallbacks(scheduleTick)
+        handler.post(scheduleTick)
+    }
+
+    /** 时段恢复：自动解除由时段触发的锁屏，并按当前额度开始一次计时。 */
+    private fun releaseScheduleLock() {
+        Diag.i("Schedule", "within window again, auto-release")
+        pref.setLocked(false)
+        pref.setHomeAliasEnabled(this, false)
+        KioskManager.syncLockState(this)
+        overlayManager.hideOverlay()
+        lockGuard.stop()
+        MediaPause.release(this)
+        handler.removeCallbacks(mediaTick)
+        // 优先恢复被时段锁打断的剩余时长；没有剩余才按额度开新的一段
+        if (pref.isTimerActive() && pref.getRemainingMillis() > 0) {
+            timerManager.start()
+            updateCountdown(pref.getRemainingMillis())
+        } else {
+            val minutes = pref.effectiveUnlockMinutes()
+            if (minutes > 0) {
+                pref.consumeBonusMinutes()
+                pref.startTimer(minutes)
+                Revival.schedule(this)
+                timerManager.start()
+                updateCountdown(pref.getRemainingMillis())
+            }
+        }
+        updateNotification()
+    }
+
+    private fun triggerLock(bySchedule: Boolean = false) {
+        Log.i(TAG, "Triggering lock screen! schedule=$bySchedule")
+        Diag.i("Lock", if (bySchedule) "triggered by schedule" else "triggered")
+        countdownOverlay.hide()
+        MediaPause.pause(this)
+        handler.removeCallbacks(mediaTick)
+        handler.postDelayed(mediaTick, 3000)
         pref.setLocked(true)
+        pref.setLockedBySchedule(bySchedule)
         pref.setHomeAliasEnabled(this, true)
         KioskManager.syncLockState(this)
-        pref.stopTimer()
+        // 时段锁定不销毁本次剩余时长，时段恢复后接着用
+        if (!bySchedule) pref.stopTimer()
         updateNotification()
         overlayManager.showOverlayIfPermitted()
         startLockScreenActivity()
         lockGuard.start()
+        startScheduleGuard()
     }
 
     private fun startLockScreenActivity(keepOverlay: Boolean = true) {
@@ -153,13 +265,18 @@ class LockService : Service() {
     }
 
     private fun unlockAndStop() {
+        Diag.i("Lock", "unlocked")
         pref.setLocked(false)
         pref.setHomeAliasEnabled(this, false)
         KioskManager.syncLockState(this)
         pref.resetPinFailures()
+        handler.removeCallbacks(mediaTick)
+        MediaPause.release(this)
         overlayManager.hideOverlay()
         lockGuard.stop()
         timerManager.start()
+        updateCountdown(pref.getRemainingMillis())
+        startScheduleGuard()
     }
 
     fun isOverlayShowing(): Boolean = overlayManager.isShowing()
@@ -187,7 +304,18 @@ class LockService : Service() {
 
     private fun buildNotification(remaining: Long): Notification {
         val contentText = when {
+            pref.isLocked() && pref.isLockedBySchedule() -> {
+                val day = pref.scheduleDayIndex()
+                "已到休息时段（今天 ${pref.scheduleWindowLabel(day)}），家长可用 PIN 放行"
+            }
             pref.isLocked() -> "设备已锁定，答对汉字即可解锁"
+            !pref.isTimerActive() && pref.isScheduleEnabled() -> {
+                val day = pref.scheduleDayIndex()
+                if (pref.isWithinSchedule())
+                    "使用时段守护中 · 今天 ${pref.scheduleWindowLabel(day)}"
+                else
+                    "当前不在使用时段 · 今天 ${pref.scheduleWindowLabel(day)}"
+            }
             !timerManager.isScreenOn() -> "熄屏暂停中 · 剩余观看时间：${formatTime(remaining)}"
             else -> "剩余观看时间：${formatTime(remaining)}"
         }
@@ -212,6 +340,25 @@ class LockService : Service() {
         nm?.notify(NOTIFICATION_ID, buildNotification(timerManager.getRemainingMillis()))
     }
 
+    /**
+     * 角标显示条件：家长已开启 + 计时中 + 未锁屏 + 屏幕亮着 + 不在本应用设置页 / 锁屏页。
+     * 任何一条不满足都立刻隐藏，避免锁屏后角标压在答题界面上。
+     */
+    private fun updateCountdown(remainingMillis: Long) {
+        val show = pref.isShowCountdown() &&
+                pref.isTimerActive() &&
+                !pref.isLocked() &&
+                remainingMillis > 0 &&
+                timerManager.isScreenOn() &&
+                !MainActivity.isVisible &&
+                !LockScreenActivity.isOnTop()
+        if (show) {
+            countdownOverlay.show(remainingMillis)
+        } else {
+            countdownOverlay.hide()
+        }
+    }
+
     private fun formatTime(millis: Long): String {
         val totalSeconds = millis / 1000
         val minutes = totalSeconds / 60
@@ -219,11 +366,34 @@ class LockService : Service() {
         return String.format("%02d:%02d", minutes, seconds)
     }
 
+    /** 每 30 秒检查一次拦截能力，权限被系统收回时主动通知家长（只提示一次）。 */
+    private fun checkCapabilities() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastCapabilityCheck < 30_000) return
+        lastCapabilityCheck = now
+        val overlay = PermissionStatus.overlay(this)
+        val usage = PermissionStatus.usageAccess(this)
+        val accessibility = PermissionStatus.accessibility(this)
+        val monitoring = overlay || usage || accessibility
+        if (monitoring != lastMonitoring) {
+            val line = "monitoring=$monitoring overlay=$overlay usage=$usage accessibility=$accessibility"
+            if (monitoring) Diag.i("Guard", line) else Diag.w("Guard", line)
+            lastMonitoring = monitoring
+        }
+        GuardNotifier.check(this)
+    }
+
     override fun onDestroy() {
+        Diag.i("Service", "destroyed")
         timerManager.stop()
         timerManager.unregisterScreenListener()
         lockGuard.stop()
         overlayManager.hideOverlay()
+        countdownOverlay.destroy()
+        handler.removeCallbacks(mediaTick)
+        handler.removeCallbacks(scheduleTick)
+        // 只在未锁屏时恢复声音：锁屏期间服务被系统杀掉时，锁屏还在，声音应该继续保持压住
+        if (!pref.isLocked()) MediaPause.release(this)
         if (runningInstance == this) runningInstance = null
         Log.i(TAG, "LockService destroyed")
         super.onDestroy()

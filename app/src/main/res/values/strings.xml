@@ -61,6 +61,8 @@
     <string name="section_custom_bank">自定义题库（家长）</string>
     <string name="custom_bank_hint">导入 JSON 题库文件，覆盖对应年级与科目的题目（支持拼音/英语/语文，每科至少 4 条）。</string>
     <string name="btn_import_bank">导入自定义题库</string>
+    <string name="btn_export_bank">导出题库（备份/分享）</string>
+    <string name="btn_usage_history">近 7 天使用记录</string>
     <string name="btn_clear_bank">清除自定义题库</string>
     <string name="import_choose_subject">选择科目</string>
     <string name="import_choose_grade">选择年级</string>
@@ -69,6 +71,9 @@
     <string name="import_done">已导入 %1$s · %2$s 题库</string>
     <string name="import_invalid">导入失败：文件格式不正确（需 JSON，每科至少 4 条且 k/v 非空）</string>
     <string name="import_read_failed">读取文件失败</string>
+    <string name="export_done">已导出 %1$d 道题</string>
+    <string name="export_empty">%1$s · %2$s 暂无题目可导出</string>
+    <string name="export_failed">导出失败：请检查存储权限或换个保存位置</string>
     <string name="clear_done">已清除 %1$s · %2$s 题库</string>
     <string name="clear_failed">清除失败</string>
 

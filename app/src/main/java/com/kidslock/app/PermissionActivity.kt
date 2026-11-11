@@ -192,6 +192,9 @@ class PermissionActivity : AppCompatActivity() {
 
     private fun startSafely(intent: Intent): Boolean {
         return try {
+            // 家长正在权限页操作：给系统设置一个 2 分钟放行窗口，
+            // 否则「管控期间拦截系统设置」会把家长自己从设置页踢回桌面
+            PrefManager(this).allowSettingsTemporarily()
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             true
         } catch (e: ActivityNotFoundException) {

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 屏幕角标：仅在计时中、未锁屏、屏幕亮着时显示剩余时间 -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tvCountdown"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_countdown"
+    android:includeFontPadding="false"
+    android:paddingLeft="18dp"
+    android:paddingTop="8dp"
+    android:paddingRight="18dp"
+    android:paddingBottom="8dp"
+    android:textColor="@color/text_primary"
+    android:textSize="18sp"
+    android:textStyle="bold"
+    android:maxLines="1"
+    android:text="剩余 00:00" />

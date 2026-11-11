@@ -16,6 +16,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
         Log.i(TAG, "Boot received: $action")
+        Diag.i("Boot", "received action=$action")
         if (action == null) return
 
         val isBoot = action == Intent.ACTION_BOOT_COMPLETED
@@ -23,6 +24,9 @@ class BootReceiver : BroadcastReceiver() {
                 || action == "com.android.intent.action.BOOT_COMPLETED"
                 || action == "android.intent.action.autoStart"
         if (!isBoot) return
+
+        // 先排上复活通道：即使下面的自启逻辑因权限/厂商限制失败，服务也能被拉回来
+        Revival.schedule(context)
 
         val pref = PrefManager(context)
         pref.deductOfflineIfAny()
@@ -105,6 +109,12 @@ class BootReceiver : BroadcastReceiver() {
             Log.i(TAG, "Auto start enabled, starting timer")
             val minutes = pref.getWatchLimitMinutes()
             pref.startTimer(minutes)
+            startLockService(context)
+        }
+
+        if (pref.isScheduleEnabled()) {
+            // 使用时段是常驻守护：即使不开机自启计时，也要把服务拉起来按时段锁屏
+            Log.i(TAG, "Schedule guard enabled, starting service")
             startLockService(context)
         }
     }

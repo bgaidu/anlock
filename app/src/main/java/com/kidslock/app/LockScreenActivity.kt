@@ -45,6 +45,8 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var currentOptions: List<String>
     private var correctCount = 0
     private var requiredCount = 0
+    private var comboCount = 0
+    private var groupCorrect = 0
 
     private lateinit var layoutMain: View
     private lateinit var tvCharacter: TextView
@@ -64,6 +66,18 @@ class LockScreenActivity : AppCompatActivity() {
     private var unlocking = false
     private var pendingNext: Runnable? = null
     private val startedAtElapsed = SystemClock.elapsedRealtime()
+
+    /** 时段恢复等场景下服务会自动解锁，锁屏页轮询到后自行退出。 */
+    private val unlockWatch = object : Runnable {
+        override fun run() {
+            if (!pref.isLocked()) {
+                KioskManager.exitLockTask(this@LockScreenActivity)
+                finishAffinity()
+                return
+            }
+            handler.postDelayed(this, 5000)
+        }
+    }
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,6 +114,7 @@ class LockScreenActivity : AppCompatActivity() {
 
         initViews()
         loadNextQuestion()
+        showScheduleReasonIfNeeded()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -158,6 +173,15 @@ class LockScreenActivity : AppCompatActivity() {
         }
     }
 
+    /** 休息时段内锁屏：直接说明原因，而不是让孩子白答一堆题。 */
+    private fun showScheduleReasonIfNeeded() {
+        if (!pref.isScheduleEnabled() || pref.isWithinSchedule()) return
+        tvFeedback.text = "现在是休息时段（${pref.scheduleWindowLabel(pref.scheduleDayIndex())}），" +
+                "先休息一下吧。家长可输入 PIN 临时使用。"
+        tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
+        tvFeedback.visibility = View.VISIBLE
+    }
+
     private fun loadNextQuestion() {
         answering = false
         unlocking = false
@@ -195,12 +219,25 @@ class LockScreenActivity : AppCompatActivity() {
         answering = true
 
         pref.recordAnswer(index == currentQuestion.correctIndex)
+        engine.recordResult(currentQuestion, index == currentQuestion.correctIndex)
 
         if (index == currentQuestion.correctIndex) {
             correctCount++
+            comboCount++
+            groupCorrect++
+            pref.recordCombo(comboCount)
+            pref.addStars(1)
+            val groupBonus = groupCorrect >= 5
+            if (groupBonus) {
+                pref.addStars(1)
+                groupCorrect = 0
+            }
             updateProgress()
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
-            tvFeedback.text = "答对了！"
+            tvFeedback.text = if (groupBonus)
+                "答对了！本组 5 题全对，奖励 2 颗星 ⭐⭐"
+            else
+                "答对了！+1 颗星 ⭐ · 已连对 $comboCount 题"
             tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.correct_green))
             tvFeedback.visibility = View.VISIBLE
 
@@ -212,6 +249,8 @@ class LockScreenActivity : AppCompatActivity() {
             }
         } else {
             correctCount = 0
+            comboCount = 0
+            groupCorrect = 0
             updateProgress()
             optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
             for (i in currentOptions.indices) {
@@ -235,18 +274,41 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun updateProgress() {
         val remaining = (requiredCount - correctCount).coerceAtLeast(0)
+        val starText = " · ⭐ ${pref.getStars()}"
         tvProgress.text = if (remaining == 0) {
-            String.format("已答对 %d/%d 道题，即将解锁…", correctCount, requiredCount)
+            String.format("已答对 %d/%d 道题，即将解锁…", correctCount, requiredCount) + starText
         } else {
-            String.format("已答对 %d 题，还剩 %d 题即可解锁", correctCount, remaining)
+            String.format("已答对 %d 题，还剩 %d 题即可解锁", correctCount, remaining) + starText
         }
     }
 
-    private fun unlock() {
+    private fun unlock(byParent: Boolean = false) {
+        if (byParent) {
+            // 家长 PIN 放行：不受今日额度限制，给一次完整的观看时长
+            pref.grantDailyBypass(pref.getWatchLimitMinutes())
+            // 家长也要能在休息时段临时使用（覆盖本次观看时长）
+            pref.grantScheduleBypass(pref.getWatchLimitMinutes() * 60_000L)
+        } else if (!pref.isWithinSchedule()) {
+            // 休息时段不允许用答题解锁，只能家长 PIN 放行
+            tvFeedback.text = "现在是休息时段（${pref.scheduleWindowLabel(pref.scheduleDayIndex())}），" +
+                    "答题不能解锁，请家长输入 PIN"
+            tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
+            tvFeedback.visibility = View.VISIBLE
+            focusUnlockButton()
+            return
+        }
+        val minutes = pref.effectiveUnlockMinutes()
+        if (minutes <= 0) {
+            // 今日额度已用完：答对题也不再放行，避免「无限刷题换时长」
+            tvFeedback.text = "今天的时间已经用完，明天再来吧"
+            tvFeedback.visibility = View.VISIBLE
+            focusUnlockButton()
+            return
+        }
         pref.setLocked(false)
         pref.setHomeAliasEnabled(this, false)
         KioskManager.exitLockTask(this)
-        val minutes = pref.getWatchLimitMinutes()
+        pref.consumeBonusMinutes()
         pref.startTimer(minutes)
         pref.resetPinFailures()
         finishAffinity()
@@ -303,7 +365,7 @@ class LockScreenActivity : AppCompatActivity() {
         }
         if (pref.verifyPin(pinInput.toString())) {
             pref.resetPinFailures()
-            unlock()
+            unlock(byParent = true)
         } else {
             pref.recordPinFailure()
             Toast.makeText(this, "PIN码错误", Toast.LENGTH_SHORT).show()
@@ -325,6 +387,7 @@ class LockScreenActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         resumed = false
+        handler.removeCallbacks(unlockWatch)
         // 锁屏退到后台时立刻用 overlay 补位，避免出现 20:34 那种"锁屏已暂停、桌面/游戏裸奔"的空窗
         if (pref.isLocked()) {
             LockOverlayManager.holdOverlay(this)
@@ -336,12 +399,19 @@ class LockScreenActivity : AppCompatActivity() {
         super.onResume()
         resumed = true
         foregroundInstance = this
-        if (pref.isLocked()) {
-            KioskManager.enterLockTask(this)
+        if (!pref.isLocked()) {
+            // 已经被服务自动解锁（例如使用时段恢复），直接退出
+            KioskManager.exitLockTask(this)
+            finishAffinity()
+            return
         }
+        KioskManager.enterLockTask(this)
+        MediaPause.pause(this)
         LockOverlayManager.hideOverlay(this)
         hideSystemUI()
         focusUnlockButton()
+        handler.removeCallbacks(unlockWatch)
+        handler.postDelayed(unlockWatch, 5000)
 
         window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
             if ((visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
