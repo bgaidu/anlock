@@ -61,10 +61,10 @@ object AppLimitDialogs {
                 "当前：未开启。开启后，超出额度的应用会被单独拦截，桌面和其他应用照常使用。"
             val notes = buildString {
                 if (enabled && !PermissionStatus.usageAccess(activity)) {
-                    append("\n⚠ 缺少「使用情况访问」权限，无法统计用量，限额不会生效。")
+                    append("\n${Glyphs.warn} 缺少「使用情况访问」权限，无法统计用量，限额不会生效。")
                 }
                 if (enabled && !PermissionStatus.overlay(activity)) {
-                    append("\n⚠ 缺少悬浮窗权限：超时后会直接回到桌面，而不是显示提示页。")
+                    append("\n${Glyphs.warn} 缺少悬浮窗权限：超时后会直接回到桌面，而不是显示提示页。")
                 }
                 append("\n周末额度默认跟随平日，可在单个应用里单独设置。")
             }
@@ -169,7 +169,7 @@ object AppLimitDialogs {
             append("\n平日：").append(AppLimitPolicy.label(limit.weekdayMinutes))
             append(" · 周末：").append(weekendLabel(limit.weekendMinutes))
             if (!pref.isAppLimitEnabled()) {
-                append("\n\n⚠ 应用限额总开关未开启，保存后不会生效。")
+                append("\n\n${Glyphs.warn} 应用限额总开关未开启，保存后不会生效。")
             }
         }
 

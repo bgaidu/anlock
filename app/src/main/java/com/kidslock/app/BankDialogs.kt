@@ -96,7 +96,7 @@ object BankDialogs {
         val hasCustom = CustomBankStore.hasCustom(activity, subject, grade)
         val usedGrade = result.gradesUsed.firstOrNull() ?: grade
         val preview = StringBuilder()
-        result.entries.take(12).forEach { preview.append(it.k).append(" → ").append(it.v).append('\n') }
+        result.entries.take(12).forEach { preview.append(it.k).append(" ${Glyphs.arrow} ").append(it.v).append('\n') }
         if (result.entries.size > 12) preview.append("…（仅显示前 12 条）")
         if (result.entries.isEmpty()) preview.append("（暂无可用题目）")
         val message = buildString {

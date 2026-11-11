@@ -384,8 +384,8 @@ class LockScreenActivity : AppCompatActivity() {
             }
             updateProgress()
             showFeedback(
-                if (groupBonus) "答对了！本组 5 题全对，奖励 2 颗星 ⭐⭐"
-                else "答对了！+1 颗星 ⭐ · 已连对 $comboCount 题",
+                if (groupBonus) "答对了！本组 5 题全对，奖励 2 颗星 ${Glyphs.star}${Glyphs.star}"
+                else "答对了！+1 颗星 ${Glyphs.star} · 已连对 $comboCount 题",
                 R.color.correct_green
             )
             if (correctCount >= requiredCount) {
@@ -422,7 +422,7 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun updateProgress() {
         val remaining = (requiredCount - correctCount).coerceAtLeast(0)
-        val starText = " · ⭐ ${pref.getStars()}"
+        val starText = " · ${Glyphs.star} ${pref.getStars()}"
         tvProgress.text = if (remaining == 0) {
             String.format("已答对 %d/%d 道题，即将解锁…", correctCount, requiredCount) + starText
         } else {

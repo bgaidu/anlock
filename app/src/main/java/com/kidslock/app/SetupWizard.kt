@@ -72,13 +72,13 @@ object SetupWizard {
         val brand = (Build.BRAND ?: "").lowercase()
         val path = when {
             maker.contains("xiaomi") || brand.contains("redmi") || brand.contains("xiaomi") ->
-                "小米/红米：设置 → 应用 → 儿童锁屏 → 省电策略选「无限制」，并允许「自启动」。"
+                "小米/红米：设置 ${Glyphs.arrow} 应用 ${Glyphs.arrow} 儿童锁屏 ${Glyphs.arrow} 省电策略选「无限制」，并允许「自启动」。"
             maker.contains("huawei") || maker.contains("honor") || brand.contains("honor") ->
-                "华为/荣耀：手机管家 → 应用启动管理 → 儿童锁屏 → 关闭「自动管理」，允许自启动/关联启动/后台活动。"
+                "华为/荣耀：手机管家 ${Glyphs.arrow} 应用启动管理 ${Glyphs.arrow} 儿童锁屏 ${Glyphs.arrow} 关闭「自动管理」，允许自启动/关联启动/后台活动。"
             maker.contains("oppo") || maker.contains("oneplus") || brand.contains("realme") ->
-                "OPPO/一加：设置 → 电池 → 应用耗电管理 → 儿童锁屏 → 允许后台运行。"
+                "OPPO/一加：设置 ${Glyphs.arrow} 电池 ${Glyphs.arrow} 应用耗电管理 ${Glyphs.arrow} 儿童锁屏 ${Glyphs.arrow} 允许后台运行。"
             maker.contains("vivo") || brand.contains("iqoo") ->
-                "vivo/iQOO：i管家 → 应用管理 → 权限管理 → 自启动 → 允许儿童锁屏。"
+                "vivo/iQOO：i管家 ${Glyphs.arrow} 应用管理 ${Glyphs.arrow} 权限管理 ${Glyphs.arrow} 自启动 ${Glyphs.arrow} 允许儿童锁屏。"
             else ->
                 "请到系统设置的「应用管理 / 电池」里，允许儿童锁屏自启动并在后台运行。"
         }

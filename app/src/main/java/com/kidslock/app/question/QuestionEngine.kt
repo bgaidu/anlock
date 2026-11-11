@@ -269,7 +269,8 @@ class QuestionEngine private constructor(
             Subject.ENGLISH -> "判断：「${entry.k}」的意思是 ${shown} 吗？"
             else -> "判断：「${entry.k}」的拼音是 ${shown} 吗？"
         }
-        val options = listOf("✅ 对", "❌ 错")
+        // 纯逻辑层不依赖 Android 字体：用中文字符，任何设备都能画出来
+        val options = listOf("对", "错")
         return Question(
             stem = entry.k,
             hint = hint,

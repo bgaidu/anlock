@@ -711,7 +711,7 @@ class MainActivity : AppCompatActivity() {
         val pending = pref.getBonusPendingMinutes()
         val message = buildString {
             append("当前星星：$stars 颗\n")
-            append("当前比例：$need ⭐ = $reward 分钟\n")
+            append("当前比例：$need ${Glyphs.star} = $reward 分钟\n")
             if (pending > 0) append("待生效奖励：$pending 分钟（下次解锁自动并入）\n")
             append("\n兑换后孩子下次答题解锁会多 $reward 分钟。")
             if (stars < need) append("\n\n星星还不够，先让孩子继续答题攒一攒吧。")
@@ -762,7 +762,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     pref.setStarExchange(s, m)
                     updateStatus()
-                    toast("兑换比例已保存：$s ⭐ = $m 分钟")
+                    toast("兑换比例已保存：$s ${Glyphs.star} = $m 分钟")
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1314,7 +1314,7 @@ class MainActivity : AppCompatActivity() {
     private fun showHealthDialog() {
         val items = HealthCheck.items(this)
         val labels = items.map {
-            (if (it.ok) "✅ " else "⚠️ ") + it.title + "：" + it.state
+            (if (it.ok) "${Glyphs.ok} " else "${Glyphs.warn} ") + it.title + "：" + it.state
         }
         val adapter = object : ArrayAdapter<String>(
             this,
@@ -1500,7 +1500,7 @@ class MainActivity : AppCompatActivity() {
         val weekendText = if (weekendRaw < 0) "跟随平日" else DailyLimitDialog.shortLabel(weekendRaw)
         btnDailyLimit.text = "每日上限：平日 ${DailyLimitDialog.shortLabel(weekdayLimit)} · 周末 $weekendText"
         btnStarExchange.text =
-            "星星兑换：${pref.getStarExchangeStars()} ⭐ = ${pref.getStarExchangeMinutes()} 分钟"
+            "星星兑换：${pref.getStarExchangeStars()} ${Glyphs.star} = ${pref.getStarExchangeMinutes()} 分钟"
         btnLanPanel.text = if (pref.isLanEnabled()) "局域网家长面板：已开启" else "局域网家长面板：已关闭"
         tvAppLimit.text = if (!pref.isAppLimitEnabled()) {
             "应用限额：未开启"
@@ -1599,7 +1599,7 @@ class MainActivity : AppCompatActivity() {
             btnResetStats.visibility = View.GONE
         } else {
             tvAccuracy.text = getString(R.string.accuracy_text, acc) +
-                    " · ⭐ ${pref.getStars()} 颗 · 最高连对 ${pref.getBestCombo()} 题" +
+                    " · ${Glyphs.star} ${pref.getStars()} 颗 · 最高连对 ${pref.getBestCombo()} 题" +
                     " · 错题待复习 ${ReviewStore.dueCount(this)} 道"
             tvAccuracy.visibility = View.VISIBLE
             btnResetStats.visibility = View.VISIBLE
@@ -1632,7 +1632,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setButtonSelected(btn: Button, selected: Boolean, label: String) {
         if (selected) {
-            btn.text = "✓$label"
+            btn.text = "${Glyphs.check}$label"
             btn.setTextColor(ContextCompat.getColor(this, R.color.correct_green))
         } else {
             btn.text = label

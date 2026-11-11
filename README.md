@@ -299,6 +299,11 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - **家长操作**：拦截层点「家长加时」会进入 PIN 门禁，验证后直接打开该应用的限额编辑；可加时 10 分钟、重置今日用量或取消限额。设置页状态显示已设置应用数与「使用情况访问」缺失提示，管控体检同步说明影响；局域网面板显示当前应用的限额/今日用量，并可一键给当前应用加时。
 - **备份与开关**：`app_limit_enabled` 与各应用平日/周末额度纳入设置备份；当日加时/重置偏移为临时数据，刻意不备份。应用限额开启后常驻守护、开机自启，关闭后若没有计时/时段/局域网任务则自动停止服务。
 
+### 修复（1.0.1.22）
+
+- **图标字符兜底 `Glyphs`**：不同厂商字体覆盖差异很大——小米电视 4A 的系统字体里既没有 `✓` `⭐` `✅` `❌` `⚠️`，也没有 emoji 字体，这些字符在设置页（`✓三`、`✓拼音`）、统计行（`⭐ 9 颗`）、锁屏奖励（`+1 颗星 ⭐`）等处全部画成空心方框。新增 `Glyphs`，启动时用 `Paint.hasGlyph()`（API 23+；21/22 用私有区码位做像素比对）判断当前设备能否真正画出某个字符，按「好看 → 简单 → ASCII」逐级回退：勾 `✓`→`√`→`v`、星 `⭐`→`★`→`☆`→`*`、叉 `✗`→`×`→`x`、通过 `✅`→`✓`→`√`→`+`、警告 `⚠`→`!`、箭头 `→`→`->`。所有 UI 文案改走 `Glyphs`，换到别的机型（包括没有 emoji 字体的电视）也不会再出现方框。
+- 判断题选项改为纯中文「对 / 错」（`QuestionEngine` 属纯逻辑层，不引入 Android 字体依赖）；`SetupWizard` 厂商路径提示、题库预览的箭头同样走 `Glyphs.arrow`。
+
 ### 修复（1.0.1.21）
 
 - **修复 Android 6 / MIUI TV 上输入家长 PIN 后崩溃（1.0.1.18 起的回归）**：设置页的「管控体检」与「今日已用」两处用 `TextView.append()` 拼接状态文字。Android 的 `append()` 会把 TextView 的 `BufferType` 从 `NORMAL` 升级为 `EDITABLE`，从而创建 `Editor` 并走 `Editor.drawHardwareAccelerated` 绘制路径；在 Android 6 的 MIUI TV 等定制 ROM 上该路径存在 `TextLine.handleText` → `Paint.getRunAdvance` 的 `IndexOutOfBoundsException`，家长一过 PIN 进入设置页、页面首次绘制时即崩溃。现改为用 `buildString` 拼完整字符串后一次性 `text = ...` 赋值，避免 BufferType 变化，并加注释说明不要再对只读 TextView 使用 `append()`。
