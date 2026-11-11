@@ -299,6 +299,11 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - **家长操作**：拦截层点「家长加时」会进入 PIN 门禁，验证后直接打开该应用的限额编辑；可加时 10 分钟、重置今日用量或取消限额。设置页状态显示已设置应用数与「使用情况访问」缺失提示，管控体检同步说明影响；局域网面板显示当前应用的限额/今日用量，并可一键给当前应用加时。
 - **备份与开关**：`app_limit_enabled` 与各应用平日/周末额度纳入设置备份；当日加时/重置偏移为临时数据，刻意不备份。应用限额开启后常驻守护、开机自启，关闭后若没有计时/时段/局域网任务则自动停止服务。
 
+### 修复（1.0.1.21）
+
+- **修复 Android 6 / MIUI TV 上输入家长 PIN 后崩溃（1.0.1.18 起的回归）**：设置页的「管控体检」与「今日已用」两处用 `TextView.append()` 拼接状态文字。Android 的 `append()` 会把 TextView 的 `BufferType` 从 `NORMAL` 升级为 `EDITABLE`，从而创建 `Editor` 并走 `Editor.drawHardwareAccelerated` 绘制路径；在 Android 6 的 MIUI TV 等定制 ROM 上该路径存在 `TextLine.handleText` → `Paint.getRunAdvance` 的 `IndexOutOfBoundsException`，家长一过 PIN 进入设置页、页面首次绘制时即崩溃。现改为用 `buildString` 拼完整字符串后一次性 `text = ...` 赋值，避免 BufferType 变化，并加注释说明不要再对只读 TextView 使用 `append()`。
+- 影响范围：`MainActivity.updateStatus()` 中的 `btnHealth`、`tvDailyUsage`；其他 `append()` 调用均为 `StringBuilder` / `EditText`，不受影响。
+
 ### 工程债（1.0.1.20）
 
 - 新增 `AppLimitPolicy` 8 项纯逻辑单测（周末解析、加时、剩余时长、禁止/不限边界、文案格式化）；`SettingsCodecTest` 覆盖应用限额键与临时键白名单。

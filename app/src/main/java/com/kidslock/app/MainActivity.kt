@@ -1455,11 +1455,14 @@ class MainActivity : AppCompatActivity() {
         }
         btnPermissions.text = if (permMissingCount == 0)
             getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissingCount)
-        btnHealth.text = if (permMissingCount == 0)
-            "管控体检：全部就绪" else "管控体检：$permMissingCount 项未就绪"
         val bypassRisk = PermissionStatus.bypassRiskCount(this)
-        if (bypassRisk > 0) {
-            btnHealth.append(" · 绕过风险 $bypassRisk")
+        // 注意：不要用 TextView.append()。部分低版本 ROM（如 MIUI TV / Android 6）上
+        // append 会把 BufferType 从 NORMAL 变成 EDITABLE，触发 Editor 绘制路径，
+        // 在 Paint.getRunAdvance 抛 IndexOutOfBoundsException 直接崩溃。
+        btnHealth.text = buildString {
+            if (permMissingCount == 0) append("管控体检：全部就绪")
+            else append("管控体检：$permMissingCount 项未就绪")
+            if (bypassRisk > 0) append(" · 绕过风险 $bypassRisk")
         }
         btnSetupWizard.text = if (pref.isSetupWizardDone())
             "首次配置向导：已完成（点此复查）"
@@ -1485,16 +1488,14 @@ class MainActivity : AppCompatActivity() {
         val todayLimit = pref.getDailyLimitMinutes()
         val usedMinutes = (pref.getDailyUsedMs() + 59_999) / 60_000
         val dayLabel = if (pref.isWeekend()) "周末" else "平日"
-        tvDailyUsage.text = if (todayLimit <= 0)
-            "今日已用：$usedMinutes 分钟（未设上限）"
-        else
-            "今日已用：$usedMinutes / $todayLimit 分钟（$dayLabel）"
         val pendingBonus = pref.getBonusPendingMinutes()
-        if (pendingBonus > 0) {
-            tvDailyUsage.append(" · 奖励待生效 +$pendingBonus 分钟")
-        }
-        if (pref.wasClockRolledBack()) {
-            tvDailyUsage.append(" · 检测到系统时间被改回，已保留额度（点此确认）")
+        val clockRolledBack = pref.wasClockRolledBack()
+        // 同 btnHealth：避免 append() 把 TextView 变成 EDITABLE 而触发低版本 ROM 崩溃
+        tvDailyUsage.text = buildString {
+            if (todayLimit <= 0) append("今日已用：$usedMinutes 分钟（未设上限）")
+            else append("今日已用：$usedMinutes / $todayLimit 分钟（$dayLabel）")
+            if (pendingBonus > 0) append(" · 奖励待生效 +$pendingBonus 分钟")
+            if (clockRolledBack) append(" · 检测到系统时间被改回，已保留额度（点此确认）")
         }
         val weekendText = if (weekendRaw < 0) "跟随平日" else DailyLimitDialog.shortLabel(weekendRaw)
         btnDailyLimit.text = "每日上限：平日 ${DailyLimitDialog.shortLabel(weekdayLimit)} · 周末 $weekendText"
