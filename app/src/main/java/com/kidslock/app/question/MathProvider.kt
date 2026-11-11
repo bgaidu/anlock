@@ -35,4 +35,16 @@ class MathProvider(private val context: Context?) : QuestionProvider {
         return Question(problem.stem, "结果是多少？", options, correctIndex,
                 Subject.MATH, problem.id, Question.StemStyle.NORMAL)
     }
+
+    /**
+     * 填空题版本：题干相同，但要求孩子自己算并输入答案。
+     * 仍保留选项（正确答案 + 干扰项），这样答错后进错题池可继续按选择题复习。
+     */
+    fun nextFill(grade: Int, random: Random): Question? {
+        val base = next(grade, random) ?: return null
+        return base.copy(
+            hint = "算一算，在下面输入答案后按「确认」",
+            fillBlank = true
+        )
+    }
 }

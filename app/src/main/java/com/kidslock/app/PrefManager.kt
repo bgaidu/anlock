@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.SystemClock
+import com.kidslock.app.question.AdaptiveDifficulty
 import java.math.BigInteger
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
@@ -17,7 +18,7 @@ import java.util.Locale
 class PrefManager(private val context: Context) {
 
     companion object {
-        private const val PREF_NAME = "kids_lock_prefs"
+        const val PREF_NAME = "kids_lock_prefs"
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_WATCH_LIMIT_MIN = "watch_limit_min"
         private const val KEY_UNLOCK_COUNT = "unlock_count"
@@ -44,7 +45,13 @@ class PrefManager(private val context: Context) {
         private const val DEFAULT_QUESTION_GRADE = 3
         private const val DEFAULT_QUESTION_SUBJECTS = "pinyin,math"
         private const val KEY_QUESTION_JUDGMENT = "question_judgment"
+        private const val KEY_QUESTION_FILL = "question_fill"
         private const val KEY_REVIEW_BOOST = "review_boost"
+        private const val KEY_ADAPTIVE_DIFFICULTY = "adaptive_difficulty"
+        private const val KEY_ADAPTIVE_GRADE = "adaptive_grade"
+        private const val KEY_RECENT_ANSWERS = "recent_answers"
+        private const val RECENT_ANSWERS_WINDOW = 20
+        private const val KEY_WEEKLY_REPORT = "weekly_report_enabled"
         private const val SUBJECT_SEP = ","
         private val VALID_SUBJECTS = setOf("pinyin", "math", "english", "ciyu")
         private val SUBJECT_ORDER = arrayOf("pinyin", "math", "english", "ciyu")
@@ -58,6 +65,8 @@ class PrefManager(private val context: Context) {
         private const val DEFAULT_SHOW_COUNTDOWN = true
         private const val KEY_SETTINGS_ALLOW_UNTIL = "settings_allow_until"
         private const val KEY_DAILY_LIMIT_MIN = "daily_limit_min"
+        // 周末（周六/周日）单独额度；-1 = 跟随平日额度（默认，保持旧行为）
+        private const val KEY_DAILY_LIMIT_WEEKEND_MIN = "daily_limit_weekend_min"
         private const val KEY_DAILY_USED_MS = "daily_used_ms"
         private const val KEY_DAILY_DATE = "daily_date"
         private const val KEY_DAILY_BYPASS_UNTIL = "daily_bypass_until"
@@ -162,10 +171,31 @@ class PrefManager(private val context: Context) {
 
     // ===== 每日总时长上限 =====
     // 0 表示不限制（默认，避免升级后静默改变老用户行为）。
-    fun getDailyLimitMinutes(): Int = prefs.getInt(KEY_DAILY_LIMIT_MIN, DEFAULT_DAILY_LIMIT_MIN)
+    fun getDailyLimitMinutes(now: Calendar = Calendar.getInstance()): Int {
+        val weekday = prefs.getInt(KEY_DAILY_LIMIT_MIN, DEFAULT_DAILY_LIMIT_MIN)
+        if (!isWeekend(now)) return weekday
+        val weekend = prefs.getInt(KEY_DAILY_LIMIT_WEEKEND_MIN, -1)
+        return if (weekend < 0) weekday else weekend
+    }
+
+    /** 周末额度原值：-1 表示跟随平日。 */
+    fun getWeekendDailyLimitMinutes(): Int = prefs.getInt(KEY_DAILY_LIMIT_WEEKEND_MIN, -1)
+
+    /** 平日额度原值。 */
+    fun getWeekdayDailyLimitMinutes(): Int = prefs.getInt(KEY_DAILY_LIMIT_MIN, DEFAULT_DAILY_LIMIT_MIN)
 
     fun setDailyLimitMinutes(minutes: Int) {
         prefs.edit().putInt(KEY_DAILY_LIMIT_MIN, minutes.coerceIn(0, 12 * 60)).apply()
+    }
+
+    /** 设置周末额度；传 -1 表示跟随平日额度。 */
+    fun setWeekendDailyLimitMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_DAILY_LIMIT_WEEKEND_MIN, minutes.coerceIn(-1, 12 * 60)).apply()
+    }
+
+    fun isWeekend(now: Calendar = Calendar.getInstance()): Boolean {
+        val dow = now.get(Calendar.DAY_OF_WEEK)
+        return dow == Calendar.SATURDAY || dow == Calendar.SUNDAY
     }
 
     fun getDailyUsedMs(): Long {
@@ -762,6 +792,51 @@ class PrefManager(private val context: Context) {
         prefs.edit().putBoolean(KEY_REVIEW_BOOST, enabled).apply()
     }
 
+    /** 填空题：数学题改成直接输入答案（默认关闭）。 */
+    fun isFillBlankEnabled(): Boolean = prefs.getBoolean(KEY_QUESTION_FILL, false)
+
+    fun setFillBlankEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_QUESTION_FILL, enabled).apply()
+    }
+
+    /** 自适应难度：按最近 20 题正确率自动升/降一个年级（默认关闭）。 */
+    fun isAdaptiveDifficultyEnabled(): Boolean = prefs.getBoolean(KEY_ADAPTIVE_DIFFICULTY, false)
+
+    fun setAdaptiveDifficultyEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_ADAPTIVE_DIFFICULTY, enabled).apply()
+    }
+
+    /** 自适应后的生效年级；家长改年级后自动夹回「设定年级 ±1」。 */
+    fun getAdaptiveGrade(baseGrade: Int): Int {
+        val current = prefs.getInt(KEY_ADAPTIVE_GRADE, baseGrade)
+        val allowed = AdaptiveDifficulty.range(baseGrade)
+        val clamped = current.coerceIn(allowed)
+        if (clamped != current) {
+            prefs.edit().putInt(KEY_ADAPTIVE_GRADE, clamped).apply()
+        }
+        return clamped
+    }
+
+    fun setAdaptiveGrade(grade: Int) {
+        prefs.edit().putInt(KEY_ADAPTIVE_GRADE, grade).apply()
+    }
+
+    fun clearAdaptiveGrade() {
+        prefs.edit().remove(KEY_ADAPTIVE_GRADE).apply()
+    }
+
+    /** 调整过难度后清空最近答题，避免下一次立刻又跳一档。 */
+    fun consumeRecentAnswers() {
+        prefs.edit().remove(KEY_RECENT_ANSWERS).apply()
+    }
+
+    /** 每周日提醒：汇总本周使用时长与答题情况（默认开启）。 */
+    fun isWeeklyReportEnabled(): Boolean = prefs.getBoolean(KEY_WEEKLY_REPORT, true)
+
+    fun setWeeklyReportEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_WEEKLY_REPORT, enabled).apply()
+    }
+
     fun isSubjectEnabled(subject: String): Boolean = subjects.contains(subject)
 
     fun setSubjectEnabled(subject: String, enabled: Boolean): Boolean {
@@ -824,8 +899,28 @@ class PrefManager(private val context: Context) {
     fun recordAnswer(correct: Boolean) {
         val total = prefs.getInt(KEY_STAT_TOTAL, 0) + 1
         val c = prefs.getInt(KEY_STAT_CORRECT, 0) + if (correct) 1 else 0
-        prefs.edit().putInt(KEY_STAT_TOTAL, total).putInt(KEY_STAT_CORRECT, c).apply()
+        // 最近 N 题用 1/0 串存，供自适应难度判断；只保留最近 20 题，避免无限增长
+        val history = prefs.getString(KEY_RECENT_ANSWERS, "") ?: ""
+        val updated = (history + if (correct) "1" else "0")
+            .takeLast(RECENT_ANSWERS_WINDOW)
+        prefs.edit()
+            .putInt(KEY_STAT_TOTAL, total)
+            .putInt(KEY_STAT_CORRECT, c)
+            .putString(KEY_RECENT_ANSWERS, updated)
+            .apply()
     }
+
+    /** 最近 N 题的正确率（0-100）；样本不足时返回 -1。 */
+    fun getRecentAccuracyPercent(window: Int = RECENT_ANSWERS_WINDOW): Int {
+        val history = (prefs.getString(KEY_RECENT_ANSWERS, "") ?: "")
+            .takeLast(window.coerceAtLeast(1))
+        if (history.length < window) return -1
+        val correct = history.count { it == '1' }
+        return Math.round(100f * correct / history.length)
+    }
+
+    fun getRecentAnsweredCount(): Int =
+        (prefs.getString(KEY_RECENT_ANSWERS, "") ?: "").length
 
     // ===== 星星奖励 / 连对 =====
     // 星星只是正向激励，不直接兑换时长，避免绕过家长设定的额度。
@@ -849,6 +944,7 @@ class PrefManager(private val context: Context) {
             .remove(KEY_STAT_TOTAL)
             .remove(KEY_STAT_CORRECT)
             .remove(KEY_STAT_BEST_COMBO)
+            .remove(KEY_RECENT_ANSWERS)
             .apply()
     }
 

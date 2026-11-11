@@ -2,6 +2,7 @@ package com.kidslock.app.question
 
 import android.content.Context
 import android.util.Log
+import com.kidslock.app.Diag
 import com.kidslock.app.PrefManager
 import java.util.Collections
 import java.util.LinkedHashSet
@@ -14,7 +15,8 @@ class QuestionEngine private constructor(
     private val schedule: List<String>,
     private val grade: Int,
     private val judgmentEnabled: Boolean,
-    private val reviewBoostEnabled: Boolean
+    private val reviewBoostEnabled: Boolean,
+    private val fillBlankEnabled: Boolean
 ) {
     companion object {
         private const val TAG = "KidsLock-Question"
@@ -22,7 +24,27 @@ class QuestionEngine private constructor(
 
         @JvmStatic
         fun create(ctx: Context, pref: PrefManager): QuestionEngine {
-            val grade = pref.grade
+            val baseGrade = pref.grade
+            val adaptiveOn = pref.isAdaptiveDifficultyEnabled()
+            val before = if (adaptiveOn) pref.getAdaptiveGrade(baseGrade) else baseGrade
+            var grade = AdaptiveDifficulty.next(
+                current = before,
+                base = baseGrade,
+                recentAccuracy = pref.getRecentAccuracyPercent(),
+                sampleCount = pref.getRecentAnsweredCount(),
+                enabled = adaptiveOn
+            )
+            if (adaptiveOn && grade != before) {
+                // 调整过难度后清空最近答题，避免下一次解锁立刻再跳一档
+                pref.setAdaptiveGrade(grade)
+                pref.consumeRecentAnswers()
+                Log.i(TAG, "自适应难度: $before -> $grade (基准 $baseGrade)")
+                Diag.i("Question", "adaptive grade $before -> $grade (base=$baseGrade)")
+            } else if (!adaptiveOn && pref.getRecentAnsweredCount() > 0) {
+                // 关闭自适应后回到家长设定年级
+                pref.clearAdaptiveGrade()
+                grade = baseGrade
+            }
             val subjects = pref.subjects
             val total = pref.unlockCount
 
@@ -52,7 +74,7 @@ class QuestionEngine private constructor(
             val schedule = buildSchedule(effective, total, Random())
             return QuestionEngine(
                 ctx, list, bySubject, schedule, grade,
-                pref.isJudgmentEnabled(), pref.isReviewBoostEnabled()
+                pref.isJudgmentEnabled(), pref.isReviewBoostEnabled(), pref.isFillBlankEnabled()
             )
         }
 
@@ -187,7 +209,13 @@ class QuestionEngine private constructor(
         }
         for (attempt in 0 until MAX_ATTEMPTS) {
             val p = providerForScheduledSubject()
-            val q = (p ?: providers[random.nextInt(providers.size)]).next(grade, random) ?: continue
+            val provider = p ?: providers[random.nextInt(providers.size)]
+            // 填空题：数学题改成自己输入答案，其余科目保持选择题
+            val q = if (fillBlankEnabled && provider is MathProvider) {
+                provider.nextFill(grade, random)
+            } else {
+                provider.next(grade, random)
+            } ?: continue
             if (relax || !recent.contains(q.id)) {
                 recent.offer(q.id)
                 sinceJudgment++

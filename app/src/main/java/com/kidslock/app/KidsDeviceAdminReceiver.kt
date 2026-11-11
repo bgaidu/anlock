@@ -30,6 +30,8 @@ class KidsDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
         Log.w(TAG, "Device admin disabled")
+        Diag.w("Admin", "device admin disabled")
+        GuardNotifier.notifyAdminDisabled(context)
     }
 
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {

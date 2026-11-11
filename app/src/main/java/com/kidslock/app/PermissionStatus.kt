@@ -72,6 +72,42 @@ object PermissionStatus {
             "android.permission.WRITE_SECURE_SETTINGS"
         ) == PackageManager.PERMISSION_GRANTED
 
+    // ===== 防绕过检测 =====
+    // 这几项不是「权限」，而是孩子可能用来绕过管控的系统开关，单独计数并在体检里提示。
+
+    /** USB 调试：可用 adb 强停/卸载/改设置，是最直接的绕过通道。 */
+    fun adbEnabled(context: Context): Boolean = readGlobalFlag(context, Settings.Global.ADB_ENABLED)
+
+    /** 开发者选项：即使没插线，也说明设备被人动过，通常伴随 USB 调试。 */
+    fun developerOptions(context: Context): Boolean =
+        readGlobalFlag(context, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED)
+
+    /** 多用户 / 访客模式：孩子切换到另一个用户后，本应用看不到也管不到。 */
+    fun multipleUsers(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        return try {
+            val um = context.getSystemService(Context.USER_SERVICE) as? android.os.UserManager
+            (um?.userCount ?: 1) > 1
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** 当前存在的绕过风险项数量（0 表示没发现）。 */
+    fun bypassRiskCount(context: Context): Int {
+        var count = 0
+        if (adbEnabled(context)) count++
+        if (developerOptions(context)) count++
+        if (multipleUsers(context)) count++
+        return count
+    }
+
+    private fun readGlobalFlag(context: Context, key: String): Boolean = try {
+        Settings.Global.getInt(context.contentResolver, key, 0) == 1
+    } catch (e: Exception) {
+        false
+    }
+
     fun missingCount(context: Context): Int {
         var count = 0
         if (!overlay(context)) count++

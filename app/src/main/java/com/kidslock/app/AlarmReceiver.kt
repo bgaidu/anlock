@@ -15,6 +15,14 @@ class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
+
+        // 周报提醒：不依赖服务是否存活，到点直接发本地通知
+        if (action == WeeklyReportAlarm.ACTION) {
+            Log.i(TAG, "Weekly report alarm fired")
+            WeeklyReportNotifier.show(context)
+            return
+        }
+
         if (action != ACTION_TIMER_CHECK && action != ACTION_SCHEDULE_CHECK) return
         val pref = PrefManager(context)
 

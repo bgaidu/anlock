@@ -25,6 +25,8 @@
     <dimen name="btn_margin">8dp</dimen>
     <dimen name="btn_grade_width">72dp</dimen>
     <dimen name="btn_subject_width">132dp</dimen>
+    <dimen name="btn_key_width">92dp</dimen>
+    <dimen name="btn_ok_width">276dp</dimen>
 
     <!-- 间距 -->
     <dimen name="spacing_small">8dp</dimen>

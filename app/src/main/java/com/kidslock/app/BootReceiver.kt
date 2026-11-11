@@ -33,6 +33,13 @@ class BootReceiver : BroadcastReceiver() {
         KioskManager.applyOwnerPolicies(context)
         KioskManager.syncLockState(context)
 
+        val bootTime = System.currentTimeMillis()
+        val lastBootTime = pref.getLastBootTime()
+        // 只认「真的往前走了 3 分钟以内」的重启；系统时间被改回/时区跳变导致的负值不计入，
+        // 避免孩子反向改时间把重启计数刷满。
+        val delta = bootTime - lastBootTime
+        val fastReboot = lastBootTime > 0 && delta in 1..FAST_REBOOT_THRESHOLD_MS
+
         if (pref.isLocked()) {
             // 紧急解锁模式 1：紧急文件（adb 或老设备文件管理器写入应用外部私有目录，
             // 应用自身免存储权限即可读取；见 README「紧急解锁」）
@@ -45,18 +52,18 @@ class BootReceiver : BroadcastReceiver() {
                     pref.setHomeAliasEnabled(context, false)
                     pref.stopTimer()
                     emergencyFile.delete()
+                    pref.setRebootCount(0)
+                    pref.setLastBootTime(bootTime)
                     return
                 }
             }
 
-            // 紧急解锁模式 2：快速重启（3 分钟内连续重启 3 次），受设置页开关控制（默认关闭）
-            val bootTime = System.currentTimeMillis()
-            val lastBootTime = pref.getLastBootTime()
+            // 紧急解锁模式 2：3 分钟内连续重启 3 次，受设置页开关控制（默认关闭）
             val rebootCount = pref.getRebootCount()
-            if (lastBootTime > 0 && bootTime - lastBootTime < FAST_REBOOT_THRESHOLD_MS) {
+            if (fastReboot) {
                 val newCount = rebootCount + 1
                 pref.setRebootCount(newCount)
-                pref.setLastBootTime(bootTime)
+                Diag.i("Boot", "fast reboot $newCount/$FAST_REBOOT_COUNT_THRESHOLD (delta=${delta}ms)")
                 if (newCount >= FAST_REBOOT_COUNT_THRESHOLD) {
                     pref.setRebootCount(0)
                     if (pref.isEmergencyRebootUnlock()) {
@@ -64,13 +71,14 @@ class BootReceiver : BroadcastReceiver() {
                         pref.setLocked(false)
                         pref.setHomeAliasEnabled(context, false)
                         pref.stopTimer()
+                        pref.setLastBootTime(bootTime)
                         return
                     }
                 }
             } else {
                 pref.setRebootCount(1)
-                pref.setLastBootTime(bootTime)
             }
+            pref.setLastBootTime(bootTime)
 
             Log.i(TAG, "Device was locked, showing lock screen")
             pref.setHomeAliasEnabled(context, true)
@@ -84,6 +92,11 @@ class BootReceiver : BroadcastReceiver() {
             context.startActivity(lockIntent)
             return
         }
+
+        // 未锁定时重启不计入紧急解锁次数，但要把时间戳刷新掉，
+        // 否则下次锁定后第一次重启会拿着很久以前的时间戳来比较。
+        pref.setRebootCount(0)
+        pref.setLastBootTime(bootTime)
 
         if (pref.isTimerActive()) {
             if (pref.isTimerExpired()) {
@@ -123,6 +136,7 @@ class BootReceiver : BroadcastReceiver() {
             startLockService(context)
         }
         ScheduleAlarm.schedule(context)
+        WeeklyReportAlarm.schedule(context)
     }
 
     private fun startLockService(context: Context) {

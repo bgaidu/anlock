@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.kidslock.app.question.AnswerMatcher
 import com.kidslock.app.question.Question
 import com.kidslock.app.question.QuestionEngine
 
@@ -49,11 +50,16 @@ class LockScreenActivity : AppCompatActivity() {
     private var groupCorrect = 0
 
     private lateinit var layoutMain: View
+    private lateinit var layoutOptions1: View
+    private lateinit var layoutOptions2: View
+    private lateinit var layoutFill: View
+    private lateinit var tvFillInput: TextView
     private lateinit var tvCharacter: TextView
     private lateinit var tvQuestionHint: TextView
     private lateinit var tvProgress: TextView
     private lateinit var tvFeedback: TextView
     private lateinit var optionButtons: Array<Button>
+    private val fillBuffer = StringBuilder()
 
     private lateinit var layoutPin: View
     private lateinit var tvPinDisplay: TextView
@@ -130,6 +136,10 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun initViews() {
         layoutMain = findViewById(R.id.layoutMain)
+        layoutOptions1 = findViewById(R.id.layoutOptions1)
+        layoutOptions2 = findViewById(R.id.layoutOptions2)
+        layoutFill = findViewById(R.id.layoutFill)
+        tvFillInput = findViewById(R.id.tvFillInput)
         tvCharacter = findViewById(R.id.tvCharacter)
         tvQuestionHint = findViewById(R.id.tvQuestionHint)
         tvProgress = findViewById(R.id.tvProgress)
@@ -145,6 +155,8 @@ class LockScreenActivity : AppCompatActivity() {
             val idx = i
             optionButtons[i].setOnClickListener { onOptionSelected(idx) }
         }
+
+        initFillKeypad()
 
         findViewById<View>(R.id.btnParentUnlock).setOnClickListener { showPinPad() }
 
@@ -173,6 +185,21 @@ class LockScreenActivity : AppCompatActivity() {
         }
     }
 
+    /** 填空题的数字键盘：0-9、小数点、分数线、退格、确认。 */
+    private fun initFillKeypad() {
+        val digitIds = intArrayOf(
+            R.id.btnKey0, R.id.btnKey1, R.id.btnKey2, R.id.btnKey3, R.id.btnKey4,
+            R.id.btnKey5, R.id.btnKey6, R.id.btnKey7, R.id.btnKey8, R.id.btnKey9
+        )
+        for (i in digitIds.indices) {
+            findViewById<View>(digitIds[i]).setOnClickListener { onFillChar(i.toString()) }
+        }
+        findViewById<View>(R.id.btnKeyDot).setOnClickListener { onFillChar(".") }
+        findViewById<View>(R.id.btnKeySlash).setOnClickListener { onFillChar("/") }
+        findViewById<View>(R.id.btnKeyBack).setOnClickListener { onFillBack() }
+        findViewById<View>(R.id.btnKeyOk).setOnClickListener { submitFill() }
+    }
+
     /** 休息时段内锁屏：直接说明原因，而不是让孩子白答一堆题。 */
     private fun showScheduleReasonIfNeeded() {
         if (!pref.isScheduleEnabled() || pref.isWithinSchedule()) return
@@ -197,6 +224,21 @@ class LockScreenActivity : AppCompatActivity() {
         )
         tvCharacter.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize)
 
+        if (currentQuestion.fillBlank) {
+            showFillMode()
+        } else {
+            showChoiceMode()
+        }
+
+        updateProgress()
+        tvFeedback.visibility = View.GONE
+    }
+
+    private fun showChoiceMode() {
+        layoutFill.visibility = View.GONE
+        layoutOptions1.visibility = View.VISIBLE
+        layoutOptions2.visibility = View.VISIBLE
+        findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnOption3
         for (i in optionButtons.indices) {
             if (i < currentOptions.size) {
                 optionButtons[i].text = currentOptions[i]
@@ -204,9 +246,46 @@ class LockScreenActivity : AppCompatActivity() {
                 optionButtons[i].isEnabled = true
             }
         }
+    }
 
-        updateProgress()
-        tvFeedback.visibility = View.GONE
+    private fun showFillMode() {
+        layoutOptions1.visibility = View.GONE
+        layoutOptions2.visibility = View.GONE
+        layoutFill.visibility = View.VISIBLE
+        findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnKeyOk
+        fillBuffer.setLength(0)
+        updateFillDisplay()
+        findViewById<View>(R.id.btnKey7).post { findViewById<View>(R.id.btnKey7).requestFocus() }
+    }
+
+    private fun updateFillDisplay() {
+        tvFillInput.text = if (fillBuffer.isEmpty()) "—" else fillBuffer.toString()
+    }
+
+    private fun onFillChar(text: String) {
+        if (answering || unlocking) return
+        if (fillBuffer.length >= 8) return
+        // 小数点和分数线各只允许一个，避免出现 "1.2.3"
+        if (text == "." && fillBuffer.contains('.')) return
+        if (text == "/" && fillBuffer.contains('/')) return
+        fillBuffer.append(text)
+        updateFillDisplay()
+    }
+
+    private fun onFillBack() {
+        if (answering || unlocking) return
+        if (fillBuffer.isNotEmpty()) {
+            fillBuffer.setLength(fillBuffer.length - 1)
+            updateFillDisplay()
+        }
+    }
+
+    private fun submitFill() {
+        if (answering || unlocking || fillBuffer.isEmpty()) return
+        answering = true
+        val expected = currentOptions.getOrNull(currentQuestion.correctIndex) ?: ""
+        val correct = AnswerMatcher.matches(fillBuffer.toString(), expected)
+        applyAnswer(correct)
     }
 
     private fun onOptionSelected(index: Int) {
@@ -218,10 +297,27 @@ class LockScreenActivity : AppCompatActivity() {
         }
         answering = true
 
-        pref.recordAnswer(index == currentQuestion.correctIndex)
-        engine.recordResult(currentQuestion, index == currentQuestion.correctIndex)
+        val correct = index == currentQuestion.correctIndex
+        if (correct) {
+            optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
+        } else {
+            optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
+            for (i in currentOptions.indices) {
+                if (i == currentQuestion.correctIndex) {
+                    optionButtons[i].setBackgroundResource(R.drawable.btn_option_correct)
+                    break
+                }
+            }
+        }
+        applyAnswer(correct)
+    }
 
-        if (index == currentQuestion.correctIndex) {
+    /** 选择题 / 填空题共用的判分与奖励逻辑。 */
+    private fun applyAnswer(correct: Boolean) {
+        pref.recordAnswer(correct)
+        engine.recordResult(currentQuestion, correct)
+
+        if (correct) {
             correctCount++
             comboCount++
             groupCorrect++
@@ -233,14 +329,11 @@ class LockScreenActivity : AppCompatActivity() {
                 groupCorrect = 0
             }
             updateProgress()
-            optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
-            tvFeedback.text = if (groupBonus)
-                "答对了！本组 5 题全对，奖励 2 颗星 ⭐⭐"
-            else
-                "答对了！+1 颗星 ⭐ · 已连对 $comboCount 题"
-            tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.correct_green))
-            tvFeedback.visibility = View.VISIBLE
-
+            showFeedback(
+                if (groupBonus) "答对了！本组 5 题全对，奖励 2 颗星 ⭐⭐"
+                else "答对了！+1 颗星 ⭐ · 已连对 $comboCount 题",
+                R.color.correct_green
+            )
             if (correctCount >= requiredCount) {
                 unlocking = true
                 handler.postDelayed({ unlock() }, 600)
@@ -252,19 +345,19 @@ class LockScreenActivity : AppCompatActivity() {
             comboCount = 0
             groupCorrect = 0
             updateProgress()
-            optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
-            for (i in currentOptions.indices) {
-                if (i == currentQuestion.correctIndex) {
-                    optionButtons[i].setBackgroundResource(R.drawable.btn_option_correct)
-                    break
-                }
-            }
             val correctText = currentOptions.getOrNull(currentQuestion.correctIndex) ?: ""
-            tvFeedback.text = "答错了，正确答案：$correctText · 已加入错题池，下次优先复习"
-            tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
-            tvFeedback.visibility = View.VISIBLE
+            showFeedback(
+                "答错了，正确答案：$correctText · 已加入错题池，下次优先复习",
+                R.color.wrong_red
+            )
             scheduleNext(2200)
         }
+    }
+
+    private fun showFeedback(text: String, colorRes: Int) {
+        tvFeedback.text = text
+        tvFeedback.setTextColor(ContextCompat.getColor(this, colorRes))
+        tvFeedback.visibility = View.VISIBLE
     }
 
     private fun scheduleNext(delayMillis: Long) {
@@ -328,9 +421,12 @@ class LockScreenActivity : AppCompatActivity() {
      * TV 遥控器支持：打开锁屏时自动聚焦第一个选项按钮
      */
     private fun focusUnlockButton() {
-        findViewById<View>(R.id.btnOption1).post {
-            findViewById<View>(R.id.btnOption1).requestFocus()
+        val target = if (::currentQuestion.isInitialized && currentQuestion.fillBlank) {
+            R.id.btnKey7
+        } else {
+            R.id.btnOption1
         }
+        findViewById<View>(target).post { findViewById<View>(target).requestFocus() }
     }
 
     private fun onPinDigit(digit: Int) {

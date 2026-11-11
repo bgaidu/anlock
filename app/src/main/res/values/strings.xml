@@ -9,6 +9,8 @@
     <!-- Lock Screen -->
     <string name="screen_locked">屏幕已锁定</string>
     <string name="what_pronounce">这个字读什么？</string>
+    <string name="fill_input_tip">点下面的数字键输入答案（分数用 /）</string>
+    <string name="fill_confirm">确认</string>
     <string name="parent_unlock">家长解锁</string>
     <!-- 进度提示与家长解锁之间的间隔：8 个空格 -->
     <string name="gap_spaces">"        "</string>
@@ -79,6 +81,9 @@
     <string name="btn_health">管控体检（锁不住？点这里）</string>
     <string name="btn_lan_panel">局域网家长面板</string>
     <string name="btn_question_types">题型与复习</string>
+    <string name="section_backup">备份与恢复（家长）</string>
+    <string name="btn_export_settings">导出全部设置</string>
+    <string name="btn_import_settings">导入全部设置（恢复）</string>
     <string name="clear_done">已清除 %1$s · %2$s 题库</string>
     <string name="clear_failed">清除失败</string>
 

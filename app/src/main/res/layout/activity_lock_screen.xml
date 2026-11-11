@@ -49,6 +49,7 @@
                 android:layout_marginBottom="@dimen/spacing_large" />
 
             <LinearLayout
+                android:id="@+id/layoutOptions1"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/btn_height"
                 android:orientation="horizontal"
@@ -93,6 +94,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/layoutOptions2"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/btn_height"
                 android:orientation="horizontal"
@@ -131,6 +133,181 @@
                     android:nextFocusLeft="@id/btnOption3"
                     android:nextFocusRight="@id/btnOption2"
                     android:nextFocusUp="@id/btnOption2" />
+
+            </LinearLayout>
+
+            <!-- 填空题：自己输入答案（数字键盘，遥控器可用） -->
+            <LinearLayout
+                android:id="@+id/layoutFill"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                android:layout_marginTop="@dimen/spacing_small">
+
+                <TextView
+                    android:id="@+id/tvFillInput"
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/btn_height"
+                    android:minWidth="280dp"
+                    android:gravity="center"
+                    android:background="@drawable/btn_option_bg"
+                    android:text="—"
+                    android:textColor="@color/btn_text"
+                    android:textSize="@dimen/text_subtitle"
+                    android:textStyle="bold"
+                    android:paddingStart="@dimen/spacing_large"
+                    android:paddingEnd="@dimen/spacing_large" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/fill_input_tip"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="@dimen/text_body"
+                    android:layout_marginTop="@dimen/spacing_small"
+                    android:layout_marginBottom="@dimen/spacing_small" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/btn_height"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <Button android:id="@+id/btnKey7" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="7"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusRight="@id/btnKey8" android:nextFocusDown="@id/btnKey4" />
+                    <Button android:id="@+id/btnKey8" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="8"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey7" android:nextFocusRight="@id/btnKey9"
+                        android:nextFocusDown="@id/btnKey5" />
+                    <Button android:id="@+id/btnKey9" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="9"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey8" android:nextFocusRight="@id/btnKeyBack"
+                        android:nextFocusDown="@id/btnKey6" />
+                    <Button android:id="@+id/btnKeyBack" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="⌫"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey9" android:nextFocusDown="@id/btnKeySlash" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/btn_height"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <Button android:id="@+id/btnKey4" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="4"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusRight="@id/btnKey5" android:nextFocusUp="@id/btnKey7"
+                        android:nextFocusDown="@id/btnKey1" />
+                    <Button android:id="@+id/btnKey5" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="5"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey4" android:nextFocusRight="@id/btnKey6"
+                        android:nextFocusUp="@id/btnKey8" android:nextFocusDown="@id/btnKey2" />
+                    <Button android:id="@+id/btnKey6" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="6"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey5" android:nextFocusRight="@id/btnKeyDot"
+                        android:nextFocusUp="@id/btnKey9" android:nextFocusDown="@id/btnKey3" />
+                    <Button android:id="@+id/btnKeyDot" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="."
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey6" android:nextFocusUp="@id/btnKeyBack"
+                        android:nextFocusDown="@id/btnKeySlash" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/btn_height"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <Button android:id="@+id/btnKey1" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="1"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusRight="@id/btnKey2" android:nextFocusUp="@id/btnKey4"
+                        android:nextFocusDown="@id/btnKey0" />
+                    <Button android:id="@+id/btnKey2" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="2"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey1" android:nextFocusRight="@id/btnKey3"
+                        android:nextFocusUp="@id/btnKey5" android:nextFocusDown="@id/btnKey0" />
+                    <Button android:id="@+id/btnKey3" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="3"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey2" android:nextFocusRight="@id/btnKeySlash"
+                        android:nextFocusUp="@id/btnKey6" android:nextFocusDown="@id/btnKeyOk" />
+                    <Button android:id="@+id/btnKeySlash" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_key_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="/"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey3" android:nextFocusUp="@id/btnKeyDot"
+                        android:nextFocusDown="@id/btnKeyOk" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="@dimen/btn_height"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <Button android:id="@+id/btnKey0" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="@dimen/btn_key_width" android:layout_height="match_parent"
+                        android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_option_bg" android:text="0"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusRight="@id/btnKeyOk" android:nextFocusUp="@id/btnKey1" />
+                    <Button android:id="@+id/btnKeyOk" style="@style/Widget.AppCompat.Button.Borderless"
+                        android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1"
+                        android:minWidth="@dimen/btn_ok_width" android:layout_margin="@dimen/btn_margin"
+                        android:background="@drawable/btn_settings_bg" android:text="@string/fill_confirm"
+                        android:textColor="@color/btn_text" android:textSize="@dimen/text_button"
+                        android:focusable="true" android:clickable="true"
+                        android:nextFocusLeft="@id/btnKey0" android:nextFocusUp="@id/btnKey3" />
+                </LinearLayout>
 
             </LinearLayout>
 

@@ -19,6 +19,9 @@ object HealthCheck {
     const val ID_NOTIFICATIONS = 5
     const val ID_EXACT_ALARM = 6
     const val ID_DEVICE_OWNER = 7
+    const val ID_ADB = 8
+    const val ID_DEVELOPER = 9
+    const val ID_MULTI_USER = 10
 
     data class Item(
         val id: Int,
@@ -29,6 +32,9 @@ object HealthCheck {
 
     fun items(context: Context): List<Item> {
         val owner = KioskManager.isDeviceOwner(context)
+        val adb = PermissionStatus.adbEnabled(context)
+        val dev = PermissionStatus.developerOptions(context)
+        val multiUser = PermissionStatus.multipleUsers(context)
         return listOf(
             Item(ID_OVERLAY, "悬浮窗（锁屏兜底）", PermissionStatus.overlay(context), state(PermissionStatus.overlay(context))),
             Item(ID_ACCESSIBILITY, "无障碍守护（防切走）", PermissionStatus.accessibility(context), state(PermissionStatus.accessibility(context))),
@@ -36,7 +42,10 @@ object HealthCheck {
             Item(ID_BATTERY, "电池优化白名单", PermissionStatus.battery(context), state(PermissionStatus.battery(context))),
             Item(ID_NOTIFICATIONS, "通知权限（前台服务）", PermissionStatus.notifications(context), state(PermissionStatus.notifications(context))),
             Item(ID_EXACT_ALARM, "精确闹钟（准点锁屏）", PermissionStatus.exactAlarm(context), state(PermissionStatus.exactAlarm(context))),
-            Item(ID_DEVICE_OWNER, "设备所有者（防卸载/锁定任务）", owner, if (owner) "已设置" else "未设置（可选，需 adb）")
+            Item(ID_DEVICE_OWNER, "设备所有者（防卸载/锁定任务）", owner, if (owner) "已设置" else "未设置（可选，需 adb）"),
+            Item(ID_ADB, "USB 调试（adb 可绕过）", !adb, if (adb) "已打开，建议关闭" else "已关闭"),
+            Item(ID_DEVELOPER, "开发者选项", !dev, if (dev) "已打开，建议关闭" else "已关闭"),
+            Item(ID_MULTI_USER, "多用户 / 访客模式", !multiUser, if (multiUser) "存在多个用户，其他用户不受管控" else "未启用")
         )
     }
 
@@ -58,6 +67,10 @@ object HealthCheck {
                 .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
             ID_EXACT_ALARM -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
+            } else null
+            ID_ADB, ID_DEVELOPER -> Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+            ID_MULTI_USER -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                Intent("android.settings.USER_SETTINGS")
             } else null
             else -> null
         } ?: return true

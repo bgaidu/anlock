@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQ_POST_NOTIFICATIONS = 1001
+
+        /** 周报通知点开时带上，进入设置页后直接弹出「近 7 天报告」。 */
+        const val EXTRA_SHOW_WEEKLY_REPORT = "show_weekly_report"
         private val IMPORTABLE_SUBJECTS = arrayOf(Subject.PINYIN, Subject.ENGLISH, Subject.CITU)
 
         /** 设置页是否在前台：LockService 用它决定是否显示剩余时间角标 */
@@ -58,6 +61,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exportLauncher: ActivityResultLauncher<String>
     private var pendingImportSubject: String? = null
     private var pendingImportGrade = -1
+    private var pendingImportSettings = false
+    private var pendingExportSettings = false
     private var pendingExportSubject: String? = null
     private var pendingExportGrade = -1
 
@@ -104,6 +109,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvGatePinDisplay: TextView
     private val gatePinInput = StringBuilder()
     private var gateVerified = false
+    private var pendingWeeklyReport = false
 
     private val updateRunnable = object : Runnable {
         override fun run() {
@@ -151,6 +157,31 @@ class MainActivity : AppCompatActivity() {
             // 兜底：使用时段守护可能因进程被杀而缺席，进入设置页时顺手拉起来
             startLockService()
         }
+
+        // 每次进设置页都重排一次周报闹钟（幂等；开关关闭时会自动取消）
+        WeeklyReportAlarm.schedule(this)
+        handleWeeklyReportIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleWeeklyReportIntent(intent)
+    }
+
+    /**
+     * 从周报通知点进来：设置页已经通过家长 PIN 验证就直接弹报告，
+     * 否则先记住，等 PIN 验证通过再弹（避免孩子从通知直接看到使用数据）。
+     */
+    private fun handleWeeklyReportIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_WEEKLY_REPORT, false) != true) return
+        intent.removeExtra(EXTRA_SHOW_WEEKLY_REPORT)
+        if (!gateVerified) {
+            pendingWeeklyReport = true
+            toast("输入家长 PIN 后查看本周报告")
+            return
+        }
+        window.decorView.post { showWeeklyReportDialog() }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -359,6 +390,10 @@ class MainActivity : AppCompatActivity() {
             pref.allowSettingsTemporarily()
             gateVerified = true
             applyGate()
+            if (pendingWeeklyReport) {
+                pendingWeeklyReport = false
+                handler.post { showWeeklyReportDialog() }
+            }
             if (pref.shouldForcePinChange()) {
                 promptPinChange(true)
             }
@@ -470,6 +505,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnImportBank).setOnClickListener { showImportBankDialog() }
         findViewById<View>(R.id.btnClearBank).setOnClickListener { showClearBankDialog() }
         findViewById<View>(R.id.btnBankManager).setOnClickListener { showBankManagerDialog() }
+        findViewById<View>(R.id.btnExportSettings).setOnClickListener { beginSettingsExport() }
+        findViewById<View>(R.id.btnImportSettings).setOnClickListener { beginSettingsImport() }
 
         findViewById<View>(R.id.btnStartTimer).setOnClickListener {
             val minutes = pref.effectiveUnlockMinutes()
@@ -589,52 +626,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDailyLimitDialog() {
-        val values = intArrayOf(0, 60, 90, 120, 180)
-        val labels = arrayOf(
-            "关闭（不限总时长）", "60 分钟", "90 分钟", "120 分钟", "180 分钟", "自定义…"
-        )
-        AlertDialog.Builder(this)
-            .setTitle("每日总时长上限")
-            .setItems(labels) { _, which ->
-                if (which == labels.size - 1) {
-                    showDailyLimitCustomDialog()
-                } else {
-                    pref.setDailyLimitMinutes(values[which])
-                    updateStatus()
-                    toast(
-                        if (values[which] == 0) "已关闭每日上限"
-                        else "每日上限设为 ${values[which]} 分钟"
-                    )
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    private fun showDailyLimitCustomDialog() {
-        val input = EditText(this).apply {
-            setText(pref.getDailyLimitMinutes().toString())
-            inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "1-720 分钟，填 0 表示不限制"
-            setPadding(32, 24, 32, 24)
-            setSelection(text.length)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("自定义每日总时长上限")
-            .setMessage("这是孩子一天内所有观看时长的总和，与「观看时长」（单次解锁多少分钟）是两回事。")
-            .setView(input)
-            .setPositiveButton("保存") { _, _ ->
-                val minutes = input.text.toString().toIntOrNull()
-                if (minutes == null || minutes !in 0..720) {
-                    toast("请输入 0-720 之间的分钟数")
-                } else {
-                    pref.setDailyLimitMinutes(minutes)
-                    updateStatus()
-                    toast(if (minutes == 0) "已关闭每日上限" else "每日上限设为 $minutes 分钟")
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        DailyLimitDialog.show(this, pref) { updateStatus() }
     }
 
     private fun showStarExchangeDialog() {
@@ -742,53 +734,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showWeeklyReportDialog() {
-        val history = pref.getUsageHistory(7)
-        val totalMs = history.sumOf { it.second }
-        val maxDay = history.maxByOrNull { it.second }
-        val density = resources.displayMetrics.density
-        val chart = WeeklyChartView(this).apply {
-            setData(history)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                (180 * density).toInt()
-            )
-        }
-        val acc = pref.getAccuracyPercent()
-        val summaryText = buildString {
-            append("合计：").append(formatMinutes((totalMs + 59_999) / 60_000)).append('\n')
-            append("日均：").append(formatMinutes((totalMs / 7 + 59_999) / 60_000)).append('\n')
-            if (maxDay != null && maxDay.second > 0) {
-                append("最多：").append(maxDay.first)
-                    .append("（").append(formatMinutes((maxDay.second + 59_999) / 60_000)).append("）\n")
-            }
-            append('\n')
-            if (acc < 0) {
-                append("答题：暂无记录\n")
-            } else {
-                append("答题：").append(pref.getStatTotal()).append(" 题，正确率 ")
-                    .append(acc).append("%\n")
-            }
-            append("星星：").append(pref.getStars()).append(" 颗 · 最高连对 ")
-                .append(pref.getBestCombo()).append(" 题\n")
-            append("错题待复习：").append(ReviewStore.dueCount(this@MainActivity)).append(" 道")
-        }
-        val summary = TextView(this).apply {
-            text = summaryText
-            textSize = 14f
-            setPadding(0, (12 * density).toInt(), 0, 0)
-            setTextIsSelectable(true)
-        }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding((24 * density).toInt(), (12 * density).toInt(), (24 * density).toInt(), 0)
-            addView(chart)
-            addView(summary)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("近 7 天报告")
-            .setView(container)
-            .setPositiveButton("关闭", null)
-            .show()
+        WeeklyReportDialog.show(this, pref) { updateStatus() }
     }
 
     private fun showExportBankDialog() {
@@ -830,7 +776,72 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun beginSettingsExport() {
+        pendingExportSettings = true
+        pendingExportSubject = null
+        pendingExportGrade = -1
+        try {
+            exportLauncher.launch("kidslock-settings.json")
+        } catch (e: ActivityNotFoundException) {
+            pendingExportSettings = false
+            toast("没有可用的文件选择器")
+        }
+    }
+
+    private fun beginSettingsImport() {
+        pendingImportSettings = true
+        pendingImportSubject = null
+        pendingImportGrade = -1
+        try {
+            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+        } catch (e: ActivityNotFoundException) {
+            pendingImportSettings = false
+            toast("没有可用的文件选择器")
+        }
+    }
+
+    private fun confirmImportSettings(raw: String) {
+        AlertDialog.Builder(this)
+            .setTitle("导入设置")
+            .setMessage(
+                "会用备份里的设置覆盖当前配置（额度、时段、出题、星星、统计、错题池）。\n\n" +
+                        "锁屏状态、计时、当日已用时长、局域网口令不会被改动；" +
+                        "PIN 不会导入，恢复后仍是当前 PIN。"
+            )
+            .setPositiveButton("覆盖导入") { _, _ ->
+                val count = SettingsBackup.importJson(this, raw)
+                if (count < 0) {
+                    toast("导入失败：文件格式不正确或版本不兼容")
+                    return@setPositiveButton
+                }
+                BankRepository.get(this).clearCache()
+                startLockService()
+                WeeklyReportAlarm.schedule(this)
+                updateStatus()
+                toast("已导入 $count 项设置")
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun onExportFilePicked(uri: Uri?) {
+        if (pendingExportSettings) {
+            pendingExportSettings = false
+            if (uri == null) return
+            try {
+                val output = contentResolver.openOutputStream(uri) ?: run {
+                    toast(getString(R.string.export_failed))
+                    return
+                }
+                BufferedWriter(OutputStreamWriter(output, StandardCharsets.UTF_8)).use { w ->
+                    w.write(SettingsBackup.exportJson(this))
+                }
+                toast("设置已导出（不含 PIN，恢复后 PIN 为默认 1234）")
+            } catch (e: Exception) {
+                toast(getString(R.string.export_failed))
+            }
+            return
+        }
         val subject = pendingExportSubject
         val grade = pendingExportGrade
         pendingExportSubject = null
@@ -1105,6 +1116,10 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.perm_all_ok) else getString(R.string.perm_missing, permMissingCount)
         btnHealth.text = if (permMissingCount == 0)
             "管控体检：全部就绪" else "管控体检：$permMissingCount 项未就绪"
+        val bypassRisk = PermissionStatus.bypassRiskCount(this)
+        if (bypassRisk > 0) {
+            btnHealth.append(" · 绕过风险 $bypassRisk")
+        }
 
         // 一个拦截能力都没有时明确说「已失效」，而不是只显示缺几项
         val monitoring = PermissionStatus.overlay(this) ||
@@ -1120,12 +1135,15 @@ class MainActivity : AppCompatActivity() {
         btnShowCountdown.text =
             if (pref.isShowCountdown()) "屏幕角标：已开启" else "屏幕角标：已关闭"
         tvWatchTime.text = "观看时长：${pref.getWatchLimitMinutes()} 分钟"
-        val dailyLimit = pref.getDailyLimitMinutes()
+        val weekdayLimit = pref.getWeekdayDailyLimitMinutes()
+        val weekendRaw = pref.getWeekendDailyLimitMinutes()
+        val todayLimit = pref.getDailyLimitMinutes()
         val usedMinutes = (pref.getDailyUsedMs() + 59_999) / 60_000
-        tvDailyUsage.text = if (dailyLimit <= 0)
+        val dayLabel = if (pref.isWeekend()) "周末" else "平日"
+        tvDailyUsage.text = if (todayLimit <= 0)
             "今日已用：$usedMinutes 分钟（未设上限）"
         else
-            "今日已用：$usedMinutes / $dailyLimit 分钟"
+            "今日已用：$usedMinutes / $todayLimit 分钟（$dayLabel）"
         val pendingBonus = pref.getBonusPendingMinutes()
         if (pendingBonus > 0) {
             tvDailyUsage.append(" · 奖励待生效 +$pendingBonus 分钟")
@@ -1133,10 +1151,13 @@ class MainActivity : AppCompatActivity() {
         if (pref.wasClockRolledBack()) {
             tvDailyUsage.append(" · 检测到系统时间被改回，已保留额度（点此确认）")
         }
-        btnDailyLimit.text = if (dailyLimit <= 0) "每日总时长上限：未开启" else "每日总时长上限：$dailyLimit 分钟"
+        val weekendText = if (weekendRaw < 0) "跟随平日" else DailyLimitDialog.shortLabel(weekendRaw)
+        btnDailyLimit.text = "每日上限：平日 ${DailyLimitDialog.shortLabel(weekdayLimit)} · 周末 $weekendText"
         btnStarExchange.text =
             "星星兑换：${pref.getStarExchangeStars()} ⭐ = ${pref.getStarExchangeMinutes()} 分钟"
         btnLanPanel.text = if (pref.isLanEnabled()) "局域网家长面板：已开启" else "局域网家长面板：已关闭"
+        btnWeeklyReport.text =
+            if (pref.isWeeklyReportEnabled()) "近 7 天报告（每周日提醒）" else "近 7 天报告（周报提醒已关闭）"
         tvSchedule.text = if (!pref.isScheduleEnabled()) {
             "使用时段：未开启"
         } else {
@@ -1153,11 +1174,16 @@ class MainActivity : AppCompatActivity() {
             if (pref.isScheduleEnabled()) "使用时段限制：已开启" else "使用时段限制：未开启"
         tvUnlockCount.text = "解锁题数：${pref.unlockCount} 道连续答对"
 
-        tvQuestionGrade.text = "年级：${Grade.fullLabel(pref.grade)}"
+        tvQuestionGrade.text = "年级：${Grade.fullLabel(pref.grade)}" +
+                if (pref.isAdaptiveDifficultyEnabled())
+                    " · 自适应当前 ${Grade.fullLabel(pref.getAdaptiveGrade(pref.grade))}"
+                else ""
         tvQuestionSubjects.text = "科目：${enabledSubjectsText()}"
-        btnQuestionTypes.text = "题型与复习：判断题" +
+        btnQuestionTypes.text = "题型与复习：判断" +
                 (if (pref.isJudgmentEnabled()) "开" else "关") +
-                " · 错题加练" + (if (pref.isReviewBoostEnabled()) "开" else "关")
+                " · 填空" + (if (pref.isFillBlankEnabled()) "开" else "关") +
+                " · 错题加练" + (if (pref.isReviewBoostEnabled()) "开" else "关") +
+                " · 自适应" + (if (pref.isAdaptiveDifficultyEnabled()) "开" else "关")
         for (g in 0..6) {
             setButtonSelected(btnGrades[g]!!, g == pref.grade, Grade.shortLabel(g))
         }
@@ -1278,101 +1304,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showQuestionTypesDialog() {
-        val labels = arrayOf(
-            "判断题：${if (pref.isJudgmentEnabled()) "已开启（每 3 道穿插 1 道）" else "已关闭"}",
-            "错题加练：${if (pref.isReviewBoostEnabled()) "已开启（到期错题优先）" else "已关闭"}",
-            "说明：填空题 / 多选题暂未提供"
-        )
-        AlertDialog.Builder(this)
-            .setTitle("题型与复习")
-            .setItems(labels) { _, which ->
-                when (which) {
-                    0 -> {
-                        pref.setJudgmentEnabled(!pref.isJudgmentEnabled())
-                        updateStatus()
-                        toast(if (pref.isJudgmentEnabled()) "已加入判断题" else "已关闭判断题")
-                    }
-                    1 -> {
-                        pref.setReviewBoostEnabled(!pref.isReviewBoostEnabled())
-                        updateStatus()
-                        toast(if (pref.isReviewBoostEnabled()) "已开启错题加练" else "已关闭错题加练")
-                    }
-                    else -> toast("填空题 / 多选题后续版本再提供")
-                }
-            }
-            .setNegativeButton("关闭", null)
-            .show()
-    }
-
-    private fun showBankManagerDialog() {
-        val repo = BankRepository.get(this)
-        val subjects = ArrayList<String>()
-        val grades = ArrayList<Int>()
-        val labels = ArrayList<String>()
-        for (subject in IMPORTABLE_SUBJECTS) {
-            for (grade in Grade.MIN..Grade.MAX) {
-                val result = repo.load(subject, grade)
-                val custom = if (CustomBankStore.hasCustom(this, subject, grade)) " · 已自定义" else ""
-                labels.add(
-                    "${Subject.label(subject)} · ${Grade.fullLabel(grade)}：${result.entries.size} 条" +
-                            "（${bankSourceLabel(result)}$custom）"
-                )
-                subjects.add(subject)
-                grades.add(grade)
-            }
-        }
-        AlertDialog.Builder(this)
-            .setTitle("题库管理")
-            .setItems(labels.toTypedArray()) { _, which ->
-                showBankDetailDialog(subjects[which], grades[which])
-            }
-            .setNegativeButton("关闭", null)
-            .show()
-    }
-
-    private fun showBankDetailDialog(subject: String, grade: Int) {
-        val result = BankRepository.get(this).load(subject, grade)
-        val hasCustom = CustomBankStore.hasCustom(this, subject, grade)
-        val usedGrade = result.gradesUsed.firstOrNull() ?: grade
-        val preview = StringBuilder()
-        result.entries.take(12).forEach { preview.append(it.k).append(" → ").append(it.v).append('\n') }
-        if (result.entries.size > 12) preview.append("…（仅显示前 12 条）")
-        if (result.entries.isEmpty()) preview.append("（暂无可用题目）")
-        val message = buildString {
-            append("条数：").append(result.entries.size).append('\n')
-            append("来源：").append(bankSourceLabel(result)).append('\n')
-            if (usedGrade != grade) {
-                append("兜底：使用 ").append(Grade.fullLabel(usedGrade)).append(" 的题库\n")
-            }
-            append("自定义：").append(if (hasCustom) "有（优先使用）" else "无").append("\n\n")
-            append("预览：\n").append(preview)
-        }
-        val actions = ArrayList<String>()
-        actions.add("导入/替换自定义题库")
-        actions.add("导出当前题库")
-        if (hasCustom) actions.add("清除自定义（恢复内置）")
-        AlertDialog.Builder(this)
-            .setTitle("${Subject.label(subject)} · ${Grade.fullLabel(grade)}")
-            .setMessage(message)
-            .setItems(actions.toTypedArray()) { _, which ->
-                when (actions[which]) {
-                    "导入/替换自定义题库" -> beginBankImport(subject, grade)
-                    "导出当前题库" -> beginBankExport(subject, grade)
-                    "清除自定义（恢复内置）" -> confirmClearCustomBank(subject, grade)
-                    else -> showBankManagerDialog()
-                }
-            }
-            .setNegativeButton("返回", null)
-            .show()
-    }
-
-    private fun bankSourceLabel(result: BankRepository.LoadResult): String = when {
-        result.entries.isEmpty() -> "缺失"
-        result.level == 0 -> "自定义"
-        result.level == 1 -> "内置题库"
-        result.level == 2 -> "邻近年级兜底"
-        result.level == 3 -> "代码兜底"
-        else -> "未知"
+        QuestionTypeDialog.show(this, pref) { updateStatus() }
     }
 
     private fun beginBankImport(subject: String, grade: Int) {
@@ -1396,72 +1328,47 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmClearCustomBank(subject: String, grade: Int) {
-        AlertDialog.Builder(this)
-            .setTitle("清除自定义题库")
-            .setMessage("将删除 ${Subject.label(subject)} · ${Grade.fullLabel(grade)} 的自定义题库，恢复使用内置题库。")
-            .setPositiveButton("清除") { _, _ ->
-                val ok = CustomBankStore.clear(this, subject, grade)
-                BankRepository.get(this).clearCache()
-                toast(if (ok) "已清除自定义题库" else "清除失败")
-                showBankDetailDialog(subject, grade)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+    private fun showBankManagerDialog() {
+        BankDialogs.showManager(
+            this,
+            onImport = ::beginBankImport,
+            onExport = ::beginBankExport
+        ) { updateStatus() }
     }
 
     private fun showImportBankDialog() {
-        val labels = arrayOfNulls<String>(IMPORTABLE_SUBJECTS.size)
-        for (i in labels.indices) {
-            labels[i] = Subject.label(IMPORTABLE_SUBJECTS[i])
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.import_choose_subject)
-            .setItems(labels) { _, whichSubject ->
-                val subject = IMPORTABLE_SUBJECTS[whichSubject]
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.import_choose_grade)
-                    .setItems(gradeLabels()) { _, whichGrade ->
-                        pendingImportSubject = subject
-                        pendingImportGrade = whichGrade
-                        importLauncher.launch(arrayOf("*/*"))
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+        BankDialogs.showImportPicker(this) { subject, grade ->
+            pendingImportSubject = subject
+            pendingImportGrade = grade
+            try {
+                importLauncher.launch(arrayOf("*/*"))
+            } catch (e: ActivityNotFoundException) {
+                toast("没有可用的文件选择器")
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        }
     }
 
     private fun showClearBankDialog() {
-        val labels = arrayOfNulls<String>(IMPORTABLE_SUBJECTS.size)
-        for (i in labels.indices) {
-            labels[i] = Subject.label(IMPORTABLE_SUBJECTS[i])
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.clear_choose_subject)
-            .setItems(labels) { _, whichSubject ->
-                val subject = IMPORTABLE_SUBJECTS[whichSubject]
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.clear_choose_grade)
-                    .setItems(gradeLabels()) { _, whichGrade ->
-                        val ok = CustomBankStore.clear(this, subject, whichGrade)
-                        BankRepository.get(this).clearCache()
-                        toast(
-                            if (ok) getString(
-                                R.string.clear_done,
-                                Subject.label(subject), Grade.fullLabel(whichGrade)
-                            ) else getString(R.string.clear_failed)
-                        )
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        BankDialogs.showClearPicker(this) { updateStatus() }
     }
 
     private fun onBankFilePicked(uri: Uri?) {
+        if (pendingImportSettings) {
+            pendingImportSettings = false
+            if (uri == null) return
+            try {
+                val inputStream = contentResolver.openInputStream(uri) ?: run {
+                    toast(getString(R.string.import_read_failed))
+                    return
+                }
+                val raw = BufferedReader(InputStreamReader(inputStream, StandardCharsets.UTF_8))
+                    .use { it.readText() }
+                confirmImportSettings(raw)
+            } catch (e: Exception) {
+                toast(getString(R.string.import_read_failed))
+            }
+            return
+        }
         val subject = pendingImportSubject
         val grade = pendingImportGrade
         pendingImportSubject = null
@@ -1487,7 +1394,11 @@ class MainActivity : AppCompatActivity() {
                     Subject.label(subject), Grade.fullLabel(grade)
                 ) else getString(R.string.import_invalid)
             )
-            if (ok) showBankDetailDialog(subject, grade)
+            if (ok) {
+                BankDialogs.showDetail(
+                    this, subject, grade, ::beginBankImport, ::beginBankExport
+                ) { updateStatus() }
+            }
         } catch (e: Exception) {
             toast(getString(R.string.import_read_failed))
         }

@@ -151,7 +151,7 @@ object LanServer {
                 val location = "/?t=" + urlEncode(pref.getLanToken()) + "&msg=" + urlEncode(msg)
                 respond(socket, 303, "text/plain; charset=utf-8", "", mapOf("Location" to location))
             }
-            "/api/status" -> respond(socket, 200, "application/json; charset=utf-8", statusJson(pref))
+            "/api/status" -> respond(socket, 200, "application/json; charset=utf-8", statusJson(ctx, pref))
             "/favicon.ico" -> respond(socket, 204, "text/plain", "")
             else -> respond(socket, 404, "text/plain; charset=utf-8", "Not Found")
         }
@@ -218,21 +218,42 @@ object LanServer {
         LockService.requestUnlock(ctx)
     }
 
-    private fun statusJson(pref: PrefManager): String {
+    private fun statusJson(ctx: Context, pref: PrefManager): String {
         val timerRemaining = if (pref.isTimerActive()) pref.getRemainingMillis() else 0L
+        val foreground = ForegroundApp.current(ctx)
         return buildString {
             append('{')
             append("\"locked\":").append(pref.isLocked()).append(',')
-            append("\"lockReason\":\"").append(pref.getLockReason()).append("\",")
+            append("\"lockReason\":\"").append(jsonEsc(pref.getLockReason())).append("\",")
             append("\"timerActive\":").append(pref.isTimerActive()).append(',')
             append("\"remainingMs\":").append(timerRemaining).append(',')
             append("\"withinSchedule\":").append(pref.isWithinSchedule()).append(',')
             append("\"scheduleEnabled\":").append(pref.isScheduleEnabled()).append(',')
             append("\"dailyLimitMin\":").append(pref.getDailyLimitMinutes()).append(',')
             append("\"dailyUsedMs\":").append(pref.getDailyUsedMs()).append(',')
-            append("\"stars\":").append(pref.getStars())
+            append("\"stars\":").append(pref.getStars()).append(',')
+            append("\"foregroundPackage\":")
+                .append(if (foreground == null) "null" else "\"${jsonEsc(foreground.packageName)}\"")
+                .append(',')
+            append("\"foregroundApp\":")
+                .append(if (foreground == null) "null" else "\"${jsonEsc(foreground.label)}\"")
             append('}')
         }
+    }
+
+    private fun jsonEsc(text: String): String {
+        val sb = StringBuilder(text.length + 8)
+        for (ch in text) {
+            when (ch) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                else -> if (ch < ' ') sb.append(String.format("\\u%04x", ch.code)) else sb.append(ch)
+            }
+        }
+        return sb.toString()
     }
 
     private fun buildPage(ctx: Context, pref: PrefManager, msg: String?): String {
@@ -253,6 +274,9 @@ object LanServer {
         val usedMinutes = (pref.getDailyUsedMs() + 59_999) / 60_000
         val dailyText = if (dailyLimit <= 0) "已用 ${usedMinutes} 分钟（未设上限）"
         else "已用 ${usedMinutes} / ${dailyLimit} 分钟"
+        val foreground = ForegroundApp.current(ctx)
+        val foregroundText = foreground?.label ?: if (PermissionStatus.usageAccess(ctx))
+            "未知（可能刚熄屏）" else "未授予使用情况权限"
         val scheduleText = if (pref.isScheduleEnabled())
             "今天 " + pref.scheduleWindowLabel(pref.scheduleDayIndex()) +
                     if (pref.isScheduleFreeMode()) "（时段内自由）" else "（时段内答题）"
@@ -268,6 +292,7 @@ object LanServer {
             $msgHtml
             <div class="card">
               <div class="row"><span>当前状态</span><b>${esc(stateText)}</b></div>
+              <div class="row"><span>正在使用</span><b>${esc(foregroundText)}</b></div>
               <div class="row"><span>使用时段</span><b>${esc(scheduleText)}</b></div>
               <div class="row"><span>今日时长</span><b>${esc(dailyText)}</b></div>
               <div class="row"><span>星星</span><b>${pref.getStars()} 颗</b></div>
