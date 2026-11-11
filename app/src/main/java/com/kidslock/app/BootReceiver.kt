@@ -135,6 +135,11 @@ class BootReceiver : BroadcastReceiver() {
             Log.i(TAG, "LAN panel enabled, starting service")
             startLockService(context)
         }
+        if (pref.isAppLimitEnabled()) {
+            // 应用限额需要常驻服务做前台监测与拦截
+            Log.i(TAG, "App limits enabled, starting service")
+            startLockService(context)
+        }
         ScheduleAlarm.schedule(context)
         WeeklyReportAlarm.schedule(context)
     }

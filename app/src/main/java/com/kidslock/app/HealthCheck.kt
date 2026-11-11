@@ -49,8 +49,8 @@ object HealthCheck {
                 "从最近任务或设置切走时无法自动拉回锁屏"
             ),
             Item(
-                ID_USAGE, "使用情况访问（补扣时长）", usage, state(usage),
-                "后台计时会少扣，实际使用时间可能明显超出额度"
+                ID_USAGE, "使用情况访问（补扣时长/应用限额）", usage, state(usage),
+                "后台计时会少扣；应用限额也无法统计各应用用量，超时不会拦截"
             ),
             Item(
                 ID_BATTERY, "电池优化白名单", PermissionStatus.battery(context),

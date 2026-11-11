@@ -91,14 +91,15 @@ object Revival {
         )
     }
 
-    /** 复活时按当前状态恢复：计时中 / 使用时段守护中拉起服务，锁屏中额外把锁屏页拉回前台。 */
+    /** 复活时按当前状态恢复：计时中 / 使用时段守护中 / 应用限额守护中拉起服务，锁屏中额外把锁屏页拉回前台。 */
     fun ensureRunning(context: Context, source: String) {
         val pref = PrefManager(context)
         val locked = pref.isLocked()
         val timerActive = pref.isTimerActive()
         val scheduleOn = pref.isScheduleEnabled()
         val lanOn = pref.isLanEnabled()
-        if (!locked && !timerActive && !scheduleOn && !lanOn) {
+        val appLimitOn = pref.isAppLimitEnabled()
+        if (!locked && !timerActive && !scheduleOn && !lanOn && !appLimitOn) {
             cancel(context)
             return
         }
@@ -110,10 +111,10 @@ object Revival {
             } else {
                 context.startService(intent)
             }
-            Log.i(TAG, "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn)")
+            Log.i(TAG, "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)")
             Diag.i(
                 "Revival",
-                "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn)"
+                "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)"
             )
         } catch (e: Exception) {
             Log.w(TAG, "revive service failed via $source", e)

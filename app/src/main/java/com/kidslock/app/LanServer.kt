@@ -218,6 +218,25 @@ object LanServer {
                 pref.addBonusMinutes(minutes)
                 "已加 $minutes 分钟" + if (pref.isTimerActive()) "（本轮剩余已延长）" else "（下次解锁生效）"
             }
+            "appbonus" -> {
+                val fg = ForegroundApp.current(ctx)
+                when {
+                    fg == null -> "无法确定当前应用，请稍后重试"
+                    !pref.isAppLimitEnabled() -> "应用限额未开启"
+                    else -> {
+                        val state = AppLimitRuntime.state(ctx, pref, fg.packageName)
+                        when {
+                            state == null -> "「${fg.label}」未设置应用限额"
+                            state.limitMinutes == 0 -> "「${fg.label}」为禁止使用，请先调整限额"
+                            else -> {
+                                pref.addAppLimitBonusMinutes(fg.packageName, 10)
+                                LockService.runningInstance?.onAppForeground(fg.packageName)
+                                "已给「${fg.label}」加时 10 分钟"
+                            }
+                        }
+                    }
+                }
+            }
             "stop" -> {
                 pref.stopTimer()
                 lockNow(ctx, pref)
@@ -229,6 +248,7 @@ object LanServer {
             "lock" -> "立即锁定"
             "unlock" -> "放行"
             "bonus" -> "加时"
+            "appbonus" -> "应用加时"
             "stop" -> "结束本轮并锁定"
             else -> query["cmd"] ?: "未知"
         }
@@ -261,6 +281,7 @@ object LanServer {
     private fun statusJson(ctx: Context, pref: PrefManager): String {
         val timerRemaining = if (pref.isTimerActive()) pref.getRemainingMillis() else 0L
         val foreground = ForegroundApp.current(ctx)
+        val fgLimit = foreground?.let { AppLimitRuntime.state(ctx, pref, it.packageName) }
         return buildString {
             append('{')
             append("\"locked\":").append(pref.isLocked()).append(',')
@@ -271,6 +292,12 @@ object LanServer {
             append("\"scheduleEnabled\":").append(pref.isScheduleEnabled()).append(',')
             append("\"dailyLimitMin\":").append(pref.getDailyLimitMinutes()).append(',')
             append("\"dailyUsedMs\":").append(pref.getDailyUsedMs()).append(',')
+            append("\"appLimitEnabled\":").append(pref.isAppLimitEnabled()).append(',')
+            append("\"appLimitConfigured\":").append(pref.configuredAppPackages().size).append(',')
+            append("\"appLimitLimitMin\":")
+                .append(fgLimit?.limitMinutes ?: "null").append(',')
+            append("\"appLimitUsedMs\":")
+                .append(fgLimit?.usedMs ?: "null").append(',')
             append("\"stars\":").append(pref.getStars()).append(',')
             append("\"foregroundPackage\":")
                 .append(if (foreground == null) "null" else "\"${jsonEsc(foreground.packageName)}\"")
@@ -279,6 +306,21 @@ object LanServer {
                 .append(if (foreground == null) "null" else "\"${jsonEsc(foreground.label)}\"")
             append('}')
         }
+    }
+
+    private fun appLimitText(ctx: Context, pref: PrefManager): String {
+        if (!pref.isAppLimitEnabled()) return "未开启"
+        val count = pref.configuredAppPackages().size
+        val foreground = ForegroundApp.current(ctx) ?: return "已开启 · 已设置 $count 个应用"
+        val state = AppLimitRuntime.state(ctx, pref, foreground.packageName)
+            ?: return "已开启 · 已设置 $count 个应用"
+        val limit = when {
+            state.limitMinutes < 0 -> "不限"
+            state.limitMinutes == 0 -> "禁止使用"
+            else -> "${state.limitMinutes} 分钟"
+        }
+        val usedMin = (state.usedMs + 59_999) / 60_000
+        return "${foreground.label}：已用 $usedMin / $limit"
     }
 
     private fun jsonEsc(text: String): String {
@@ -355,6 +397,7 @@ object LanServer {
               <div class="row"><span>正在使用</span><b id="foreground">${esc(foregroundText)}</b></div>
               <div class="row"><span>使用时段</span><b>${esc(scheduleText)}</b></div>
               <div class="row"><span>今日时长</span><b id="daily">${esc(dailyText)}</b></div>
+              <div class="row"><span>应用限额</span><b id="appLimit">${esc(appLimitText(ctx, pref))}</b></div>
               <div class="row"><span>星星</span><b id="stars">${pref.getStars()} 颗</b></div>
             </div>
             <div class="card">
@@ -367,6 +410,7 @@ object LanServer {
               <a class="btn" href="$action&cmd=unlock&min=30">放行 30 分钟</a>
               <a class="btn" href="$action&cmd=unlock&min=60">放行 60 分钟</a>
               <a class="btn" href="$action&cmd=bonus&min=10">加时 10 分钟</a>
+              <a class="btn" href="$action&cmd=appbonus">当前应用加时 10 分钟</a>
               <a class="btn" href="$action&cmd=stop">结束本轮并锁定</a>
               <a class="btn ghost" href="/?t=${urlEncode(token)}">刷新</a>
             </div>
@@ -447,6 +491,16 @@ object LanServer {
             setText('daily', s.dailyLimitMin > 0
               ? '已用 ' + used + ' / ' + s.dailyLimitMin + ' 分钟'
               : '已用 ' + used + ' 分钟（未设上限）');
+            if (!s.appLimitEnabled) {
+              setText('appLimit', '未开启');
+            } else if (s.appLimitLimitMin !== null && s.appLimitLimitMin !== undefined) {
+              var lim = s.appLimitLimitMin < 0 ? '不限'
+                : (s.appLimitLimitMin === 0 ? '禁止使用' : s.appLimitLimitMin + ' 分钟');
+              var appUsed = Math.ceil((s.appLimitUsedMs || 0) / 60000);
+              setText('appLimit', '当前应用已用 ' + appUsed + ' / ' + lim);
+            } else {
+              setText('appLimit', '已开启（当前应用未设置）');
+            }
             setText('stars', s.stars + ' 颗');
           }
           function tick() {

@@ -54,6 +54,9 @@ class MainActivity : AppCompatActivity() {
 
         /** 周报通知点开时带上，进入设置页后直接弹出「近 7 天报告」。 */
         const val EXTRA_SHOW_WEEKLY_REPORT = "show_weekly_report"
+
+        /** 应用限额拦截层点「家长加时」时带上包名，PIN 验证后直接打开该应用的限额编辑。 */
+        const val EXTRA_APP_LIMIT_PACKAGE = "app_limit_package"
         private val IMPORTABLE_SUBJECTS = arrayOf(Subject.PINYIN, Subject.ENGLISH, Subject.CITU)
 
         /** 设置页是否在前台：LockService 用它决定是否显示剩余时间角标 */
@@ -85,6 +88,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnUsageHistory: Button
     private lateinit var btnWeeklyReport: Button
     private lateinit var btnAppUsageRanking: Button
+    private lateinit var tvAppLimit: TextView
+    private lateinit var btnAppLimit: Button
     private lateinit var btnLanPanel: Button
     private lateinit var btnQuestionTypes: Button
     private lateinit var btnSubjectGrades: Button
@@ -120,6 +125,7 @@ class MainActivity : AppCompatActivity() {
     private val gatePinInput = StringBuilder()
     private var gateVerified = false
     private var pendingWeeklyReport = false
+    private var pendingAppLimitPackage: String? = null
     private var wizardAutoShown = false
 
     private val updateRunnable = object : Runnable {
@@ -172,12 +178,29 @@ class MainActivity : AppCompatActivity() {
         // 每次进设置页都重排一次周报闹钟（幂等；开关关闭时会自动取消）
         WeeklyReportAlarm.schedule(this)
         handleWeeklyReportIntent(intent)
+        handleAppLimitIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleWeeklyReportIntent(intent)
+        handleAppLimitIntent(intent)
+    }
+
+    /**
+     * 从应用限额拦截层点「家长加时」进来：同样先过 PIN，验证通过后再打开该应用的限额编辑。
+     */
+    private fun handleAppLimitIntent(intent: Intent?) {
+        val pkg = intent?.getStringExtra(EXTRA_APP_LIMIT_PACKAGE) ?: return
+        intent.removeExtra(EXTRA_APP_LIMIT_PACKAGE)
+        if (pkg.isEmpty() || pkg == packageName) return
+        if (!gateVerified) {
+            pendingAppLimitPackage = pkg
+            toast("输入家长 PIN 后可给该应用加时")
+            return
+        }
+        window.decorView.post { AppLimitDialogs.showEditor(this, pref, pkg) { updateStatus() } }
     }
 
     /**
@@ -222,6 +245,10 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (pref.isTimerActive()) {
+            startLockService()
+            Revival.schedule(this)
+        }
+        if (pref.isAppLimitEnabled()) {
             startLockService()
             Revival.schedule(this)
         }
@@ -276,6 +303,11 @@ class MainActivity : AppCompatActivity() {
         btnWeeklyReport.setOnClickListener { showWeeklyReportDialog() }
         btnAppUsageRanking = findViewById(R.id.btnAppUsageRanking)
         btnAppUsageRanking.setOnClickListener { showAppUsageRankingDialog() }
+        tvAppLimit = findViewById(R.id.tvAppLimit)
+        btnAppLimit = findViewById(R.id.btnAppLimit)
+        btnAppLimit.setOnClickListener {
+            AppLimitDialogs.showManager(this, pref) { updateStatus() }
+        }
         btnLanPanel = findViewById(R.id.btnLanPanel)
         btnLanPanel.setOnClickListener { showLanPanelDialog() }
         btnExportBank = findViewById(R.id.btnExportBank)
@@ -414,6 +446,10 @@ class MainActivity : AppCompatActivity() {
             if (pendingWeeklyReport) {
                 pendingWeeklyReport = false
                 handler.post { showWeeklyReportDialog() }
+            }
+            pendingAppLimitPackage?.let { pkg ->
+                pendingAppLimitPackage = null
+                handler.post { AppLimitDialogs.showEditor(this, pref, pkg) { updateStatus() } }
             }
             if (pref.shouldForcePinChange()) {
                 promptPinChange(true)
@@ -1465,6 +1501,15 @@ class MainActivity : AppCompatActivity() {
         btnStarExchange.text =
             "星星兑换：${pref.getStarExchangeStars()} ⭐ = ${pref.getStarExchangeMinutes()} 分钟"
         btnLanPanel.text = if (pref.isLanEnabled()) "局域网家长面板：已开启" else "局域网家长面板：已关闭"
+        tvAppLimit.text = if (!pref.isAppLimitEnabled()) {
+            "应用限额：未开启"
+        } else {
+            val count = pref.configuredAppPackages().size
+            val usageHint = if (PermissionStatus.usageAccess(this)) "" else " · 缺少使用情况访问"
+            "应用限额：已开启 · 已设置 $count 个应用$usageHint"
+        }
+        btnAppLimit.text = if (pref.isAppLimitEnabled())
+            "应用限额：已开启（点击管理）" else "应用限额：未开启（点击设置）"
         btnWeeklyReport.text =
             if (pref.isWeeklyReportEnabled()) "近 7 天报告（每周日提醒）" else "近 7 天报告（周报提醒已关闭）"
         tvSchedule.text = if (!pref.isScheduleEnabled()) {

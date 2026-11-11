@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.SystemClock
+import com.kidslock.app.prefs.AppLimitSettings
+import com.kidslock.app.prefs.AppLimitStore
 import com.kidslock.app.prefs.AppOptionSettings
 import com.kidslock.app.prefs.AppOptionsStore
 import com.kidslock.app.prefs.ClockGuard
@@ -39,7 +41,8 @@ class PrefManager private constructor(
     QuestionSettings by QuestionStore(prefs),
     ScheduleSettings by ScheduleStore(prefs),
     RewardSettings by RewardStore(prefs),
-    AppOptionSettings by AppOptionsStore(prefs) {
+    AppOptionSettings by AppOptionsStore(prefs),
+    AppLimitSettings by AppLimitStore(prefs) {
 
     companion object {
         const val PREF_NAME = PrefKeys.PREF_NAME

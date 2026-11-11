@@ -84,6 +84,20 @@ class RecoveryAccessibilityService : AccessibilityService() {
             }
             return false
         }
+
+        @Volatile
+        private var instance: RecoveryAccessibilityService? = null
+
+        /** 应用限额兜底：悬浮窗不可用时用无障碍回到桌面。 */
+        @JvmStatic
+        fun goHome(context: Context): Boolean {
+            val service = instance ?: return false
+            return try {
+                service.performGlobalAction(GLOBAL_ACTION_HOME)
+            } catch (e: Exception) {
+                false
+            }
+        }
     }
 
     private var lastRecoveryAttempt: Long = 0
@@ -97,6 +111,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         Log.i(TAG, "Service connected (boot or rebinding), running recovery check")
         recoverIfNeeded()
         handler.removeCallbacks(periodicRecovery)
@@ -104,15 +119,35 @@ class RecoveryAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        instance = null
         handler.removeCallbacks(periodicRecovery)
         return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        instance = null
+        handler.removeCallbacks(periodicRecovery)
+        super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         suppressForeignWindow(event)
         suppressSettings(event)
+        notifyAppLimit(event)
         recoverIfNeeded()
+    }
+
+    /** 把前台应用变化告诉 LockService，用于应用级限额的即时拦截。 */
+    private fun notifyAppLimit(event: AccessibilityEvent) {
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg == "android") return
+        try {
+            val pref = PrefManager(this)
+            if (pref.isAppLimitEnabled()) LockService.notifyForeground(this, pkg)
+        } catch (e: Exception) {
+            Log.e(TAG, "notifyAppLimit failed", e)
+        }
     }
 
     private fun suppressForeignWindow(event: AccessibilityEvent) {

@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 
 class LockService : Service() {
@@ -22,6 +23,8 @@ class LockService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_UNLOCK = "com.kidslock.app.ACTION_UNLOCK"
         private const val ACTION_LOCK = "com.kidslock.app.ACTION_LOCK"
+        private const val ACTION_APP_FOREGROUND = "com.kidslock.app.ACTION_APP_FOREGROUND"
+        private const val EXTRA_APP_PACKAGE = "app_package"
         const val ACTION_HOLD_OVERLAY = "com.kidslock.app.ACTION_HOLD_OVERLAY"
 
         @Volatile
@@ -45,6 +48,34 @@ class LockService : Service() {
                 Log.w(TAG, "requestLock failed", e)
             }
         }
+
+        /**
+         * 无障碍服务检测到前台应用变化时调用。
+         * 服务还活着就直接检查；服务不在（被系统杀掉）则按需拉起，避免应用限额失效。
+         */
+        @JvmStatic
+        fun notifyForeground(context: Context, packageName: String) {
+            if (packageName.isEmpty()) return
+            val service = runningInstance
+            if (service != null) {
+                service.onAppForeground(packageName)
+                return
+            }
+            if (packageName == context.packageName) return
+            try {
+                if (!PrefManager(context).isAppLimitEnabled()) return
+                val intent = Intent(context, LockService::class.java)
+                    .setAction(ACTION_APP_FOREGROUND)
+                    .putExtra(EXTRA_APP_PACKAGE, packageName)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "notifyForeground failed", e)
+            }
+        }
     }
 
     private lateinit var pref: PrefManager
@@ -53,6 +84,9 @@ class LockService : Service() {
     private lateinit var lockGuard: LockGuard
     private lateinit var overlayManager: LockOverlayManager
     private lateinit var countdownOverlay: CountdownOverlay
+    private lateinit var appLimitOverlay: AppLimitOverlay
+    private var lastAppLimitToast = 0L
+    private var lastAppLimitCount = -1
     private var lastCapabilityCheck = 0L
     private var lastMonitoring: Boolean? = null
     private val mediaTick = object : Runnable {
@@ -105,6 +139,17 @@ class LockService : Service() {
                 startLockScreenActivity(keepOverlay = false)
             }
         })
+        appLimitOverlay = AppLimitOverlay(this, object : AppLimitOverlay.Callback {
+            override fun onGoHome() {
+                appLimitOverlay.hide()
+                goHome()
+            }
+
+            override fun onOpenSettings(packageName: String) {
+                appLimitOverlay.hide()
+                openAppLimitSettings(packageName)
+            }
+        })
         timerManager.registerScreenListener()
         createNotificationChannel()
         runningInstance = this
@@ -113,6 +158,7 @@ class LockService : Service() {
         pref.deductOfflineIfAny()
         GuardNotifier.check(this)
         Revival.schedule(this)
+        if (pref.isAppLimitEnabled()) startAppLimitGuard()
         Diag.i("Service", "created timer=${pref.isTimerActive()} locked=${pref.isLocked()}")
         Log.i(TAG, "LockService created")
     }
@@ -120,6 +166,18 @@ class LockService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification(pref.getRemainingMillis()))
         updateNotification()
+
+        if (intent != null && ACTION_APP_FOREGROUND == intent.action) {
+            intent.getStringExtra(EXTRA_APP_PACKAGE)?.let { onAppForeground(it) }
+            if (pref.isAppLimitEnabled()) {
+                startAppLimitGuard()
+            } else if (!pref.isLocked() && !pref.isTimerActive() &&
+                !pref.isScheduleEnabled() && !pref.isLanEnabled()) {
+                stopForeground(true)
+                stopSelf()
+            }
+            return START_STICKY
+        }
 
         if (intent != null && ACTION_UNLOCK == intent.action) {
             unlockAndStop()
@@ -161,7 +219,8 @@ class LockService : Service() {
             return START_STICKY
         }
 
-        if (!pref.isTimerActive() && !pref.isScheduleEnabled() && !pref.isLanEnabled()) {
+        if (!pref.isTimerActive() && !pref.isScheduleEnabled() &&
+            !pref.isLanEnabled() && !pref.isAppLimitEnabled()) {
             Log.i(TAG, "Timer not active and schedule off, stopping service")
             countdownOverlay.hide()
             Revival.cancel(this)
@@ -186,6 +245,10 @@ class LockService : Service() {
             startScheduleGuard()
             updateNotification()
         }
+        if (pref.isAppLimitEnabled()) {
+            startAppLimitGuard()
+            updateNotification()
+        }
         return START_STICKY
     }
 
@@ -203,7 +266,8 @@ class LockService : Service() {
             if (!pref.isScheduleEnabled()) {
                 // 家长关掉时段限制后，不再常驻
                 ScheduleAlarm.cancel(this@LockService)
-                if (!pref.isLocked() && !pref.isTimerActive() && !pref.isLanEnabled()) {
+                if (!pref.isLocked() && !pref.isTimerActive() && !pref.isLanEnabled() &&
+                    !pref.isAppLimitEnabled()) {
                     handler.removeCallbacks(this)
                     stopForeground(true)
                     stopSelf()
@@ -234,6 +298,164 @@ class LockService : Service() {
         handler.removeCallbacks(scheduleTick)
         handler.post(scheduleTick)
         ScheduleAlarm.schedule(this)
+    }
+
+    /** 应用限额守护：每 5 秒复查一次前台应用，切换应用时由无障碍立即触发。 */
+    private val appLimitTick = object : Runnable {
+        override fun run() {
+            if (!pref.isAppLimitEnabled()) {
+                appLimitOverlay.hide()
+                AppUsageTracker.onBackground()
+                handler.removeCallbacks(this)
+                if (!pref.isLocked() && !pref.isTimerActive() &&
+                    !pref.isScheduleEnabled() && !pref.isLanEnabled()) {
+                    stopForeground(true)
+                    stopSelf()
+                }
+                return
+            }
+            if (pref.isLocked()) {
+                appLimitOverlay.hide()
+            } else {
+                checkAppLimit()
+            }
+            val count = pref.configuredAppPackages().size
+            if (count != lastAppLimitCount) {
+                lastAppLimitCount = count
+                updateNotification()
+            }
+            handler.postDelayed(this, 5000)
+        }
+    }
+
+    private fun startAppLimitGuard() {
+        handler.removeCallbacks(appLimitTick)
+        handler.post(appLimitTick)
+    }
+
+    /** 无障碍服务报告前台应用变化：立即结算会话并检查额度。 */
+    fun onAppForeground(packageName: String) {
+        if (!pref.isAppLimitEnabled()) return
+        if (packageName == this.packageName) {
+            // 悬浮层本身也会触发本应用的窗口事件；只有真正的 Activity 在前台时才让路
+            if (ForegroundUi.isVisible) {
+                appLimitOverlay.hide()
+                AppUsageTracker.onBackground()
+            }
+            return
+        }
+        AppUsageTracker.onForeground(this, packageName)
+        if (pref.isLocked()) {
+            appLimitOverlay.hide()
+            return
+        }
+        checkAppLimit()
+    }
+
+    private fun checkAppLimit() {
+        if (!pref.isAppLimitEnabled()) {
+            appLimitOverlay.hide()
+            AppUsageTracker.onBackground()
+            return
+        }
+        if (ForegroundUi.isVisible) {
+            // 家长在本应用设置页/权限页/锁屏页：不拦截，也不把时间算到别的应用上
+            if (appLimitOverlay.isShowing()) appLimitOverlay.hide()
+            AppUsageTracker.onBackground()
+            return
+        }
+        val actual = AppUsageTracker.currentPackage()
+            ?: ForegroundApp.current(this, includeSelf = true)?.packageName
+        val pkg = actual ?: appLimitOverlay.shownPackage()
+        if (pkg == this.packageName) return
+        if (pkg.isNullOrEmpty() || pkg == "android" || isHomePackage(pkg)) {
+            if (appLimitOverlay.isShowing()) appLimitOverlay.hide()
+            AppUsageTracker.onBackground()
+            return
+        }
+        val state = AppLimitRuntime.state(this, pref, pkg)
+        if (state == null || !state.blocked) {
+            if (appLimitOverlay.isShowing()) {
+                appLimitOverlay.hide()
+                // 家长刚加时/重置：拦截层撤掉后重新开始计入当前应用
+                AppUsageTracker.onForeground(this, pkg)
+            }
+            return
+        }
+        val label = appLabel(pkg)
+        if (appLimitOverlay.isShowingFor(pkg)) {
+            appLimitOverlay.show(state, label)
+            return
+        }
+        // 拦截期间不再把时间算到被拦截的应用上，避免家长加时后额度立刻又用完
+        AppUsageTracker.onBackground()
+        // 缺少使用情况访问时无法判断孩子是否已经切走，悬浮层可能盖住桌面；
+        // 这种情况直接回桌面，保证孩子不会被自己的拦截层困住。
+        if (PermissionStatus.overlay(this) && PermissionStatus.usageAccess(this)) {
+            appLimitOverlay.show(state, label)
+            Diag.w(
+                "AppLimit",
+                "blocked pkg=$pkg used=${state.usedMs / 60_000}m limit=${state.limitMinutes}m"
+            )
+        } else {
+            appLimitOverlay.hide()
+            goHome()
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastAppLimitToast > 10_000) {
+                lastAppLimitToast = now
+                Toast.makeText(this, "「$label」今日额度已用完", Toast.LENGTH_SHORT).show()
+                Diag.w("AppLimit", "blocked (no overlay) pkg=$pkg, bounced home")
+            }
+        }
+    }
+
+    private var cachedHomePackages: Set<String>? = null
+
+    @Suppress("DEPRECATION")
+    private fun isHomePackage(packageName: String): Boolean {
+        val homes = cachedHomePackages ?: try {
+            packageManager.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+                0
+            ).mapNotNull { it.activityInfo?.packageName }.toSet()
+        } catch (e: Exception) {
+            emptySet()
+        }.also { cachedHomePackages = it }
+        return packageName in homes
+    }
+
+    private fun goHome() {
+        if (RecoveryAccessibilityService.goHome(this)) return
+        try {
+            startActivity(
+                Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_HOME)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "goHome failed", e)
+        }
+    }
+
+    private fun openAppLimitSettings(packageName: String) {
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_APP_LIMIT_PACKAGE, packageName)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "open app limit settings failed", e)
+        }
+    }
+
+    private fun appLabel(packageName: String): String = try {
+        val pm = packageManager
+        @Suppress("DEPRECATION")
+        val info = pm.getApplicationInfo(packageName, 0)
+        pm.getApplicationLabel(info).toString()
+    } catch (e: Exception) {
+        packageName
     }
 
     /** 时段恢复：自动解除由时段触发的锁屏，并按当前额度开始一次计时。 */
@@ -269,6 +491,7 @@ class LockService : Service() {
     private fun triggerLock(bySchedule: Boolean = false) {
         Log.i(TAG, "Triggering lock screen! schedule=$bySchedule")
         Diag.i("Lock", if (bySchedule) "triggered by schedule" else "triggered")
+        appLimitOverlay.hide()
         EyeRestOverlay.hide()
         countdownOverlay.hide()
         MediaPause.pause(this)
@@ -325,6 +548,7 @@ class LockService : Service() {
         timerManager.start()
         updateCountdown(pref.getRemainingMillis())
         startScheduleGuard()
+        if (pref.isAppLimitEnabled()) startAppLimitGuard()
     }
 
     fun isOverlayShowing(): Boolean = overlayManager.isShowing()
@@ -368,6 +592,8 @@ class LockService : Service() {
                         "当前不在使用时段 · 今天 ${pref.scheduleWindowLabel(day)}"
                 }
             }
+            !pref.isTimerActive() && pref.isAppLimitEnabled() ->
+                "应用限额守护中 · 已设置 ${pref.configuredAppPackages().size} 个应用"
             !timerManager.isScreenOn() -> "熄屏暂停中 · 剩余观看时间：${formatTime(remaining)}"
             else -> "剩余观看时间：${formatTime(remaining)}"
         }
@@ -463,9 +689,12 @@ class LockService : Service() {
         timerManager.unregisterScreenListener()
         lockGuard.stop()
         overlayManager.hideOverlay()
+        appLimitOverlay.hide()
+        AppUsageTracker.onBackground()
         countdownOverlay.destroy()
         handler.removeCallbacks(mediaTick)
         handler.removeCallbacks(scheduleTick)
+        handler.removeCallbacks(appLimitTick)
         // 只在未锁屏时恢复声音：锁屏期间服务被系统杀掉时，锁屏还在，声音应该继续保持压住
         if (!pref.isLocked()) MediaPause.release(this)
         if (runningInstance == this) runningInstance = null

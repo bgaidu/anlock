@@ -1,6 +1,8 @@
 package com.kidslock.app
 
 import android.app.Application
+import android.app.Activity
+import android.os.Bundle
 import android.os.Process
 
 class KidsLockApp : Application() {
@@ -9,11 +11,24 @@ class KidsLockApp : Application() {
     override fun onCreate() {
         super.onCreate()
         installCrashLogger()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) = ForegroundUi.onActivityStarted()
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) = ForegroundUi.onActivityStopped()
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
         AppContextHolder.context = this
         val pref = PrefManager(this)
-        if (pref.isTimerActive() || pref.isLocked()) {
+        if (pref.isTimerActive() || pref.isLocked() || pref.isAppLimitEnabled()) {
             Revival.schedule(this)
-            Diag.i("App", "process start, timer=${pref.isTimerActive()} locked=${pref.isLocked()}")
+            Diag.i(
+                "App",
+                "process start, timer=${pref.isTimerActive()} locked=${pref.isLocked()} " +
+                        "appLimit=${pref.isAppLimitEnabled()}"
+            )
         } else {
             Diag.i("App", "process start, idle")
         }

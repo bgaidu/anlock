@@ -71,6 +71,13 @@ internal object PrefKeys {
     const val LAST_BOOT_TIME = "last_boot_time"
     const val REBOOT_COUNT = "reboot_count"
 
+    // 应用级限额：按包名保存平日/周末额度，-1 表示不限，0 表示禁止使用
+    const val APP_LIMIT_ENABLED = "app_limit_enabled"
+    const val APP_LIMIT_WEEKDAY_PREFIX = "app_limit_min_"
+    const val APP_LIMIT_WEEKEND_PREFIX = "app_limit_weekend_"
+    const val APP_LIMIT_BONUS_PREFIX = "app_limit_bonus_"
+    const val APP_LIMIT_OFFSET_PREFIX = "app_limit_offset_"
+
     const val DEFAULT_AUTO_START = true
     const val DEFAULT_WATCH_LIMIT_MIN = 30
     const val DEFAULT_UNLOCK_COUNT = 5

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/appLimitRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#E6000000"
+    android:focusable="true"
+    android:clickable="true">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="48dp">
+
+        <ImageView
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:contentDescription="@null"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:id="@+id/tvAppLimitTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="今天的时间用完了"
+            android:textColor="@android:color/white"
+            android:textSize="52sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvAppLimitDetail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text=""
+            android:textColor="#E0E0E0"
+            android:textSize="26sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="44dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnAppLimitHome"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="260dp"
+                android:minHeight="88dp"
+                android:text="回到桌面"
+                android:textColor="@android:color/white"
+                android:textSize="28sp"
+                android:background="@drawable/btn_option_bg"
+                android:focusable="true" />
+
+            <Button
+                android:id="@+id/btnAppLimitSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:minWidth="260dp"
+                android:minHeight="88dp"
+                android:text="家长加时"
+                android:textColor="@android:color/white"
+                android:textSize="28sp"
+                android:background="@drawable/btn_option_bg"
+                android:focusable="true" />
+
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="家长输入 PIN 后可加时或调整限额"
+            android:textColor="#A0A0A0"
+            android:textSize="20sp" />
+
+    </LinearLayout>
+
+</FrameLayout>

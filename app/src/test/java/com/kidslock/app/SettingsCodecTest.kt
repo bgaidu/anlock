@@ -53,9 +53,13 @@ class SettingsCodecTest {
         assertTrue(SettingsCodec.isAllowed("eye_rest_interval_min"))
         assertTrue(SettingsCodec.isAllowed("schedule_start_0"))
         assertTrue(SettingsCodec.isAllowed("schedule_end_6"))
+        assertTrue(SettingsCodec.isAllowed("app_limit_enabled"))
+        assertTrue(SettingsCodec.isAllowed("app_limit_min_com.example.game"))
+        assertTrue(SettingsCodec.isAllowed("app_limit_weekend_com.example.game"))
         // PIN 永远不进备份
         assertFalse(SettingsCodec.isAllowed("parent_pin"))
         assertFalse(SettingsCodec.isAllowed("pin_salt"))
         assertFalse(SettingsCodec.isAllowed("lan_token"))
+        assertFalse(SettingsCodec.isAllowed("app_limit_bonus_com.example.game_2026-11-11"))
     }
 }

@@ -81,6 +81,7 @@
     <string name="btn_health">管控体检（锁不住？点这里）</string>
     <string name="btn_setup_wizard">首次配置向导（权限 · 电池 · PIN · 试锁）</string>
     <string name="btn_app_usage_ranking">按应用使用排行（近 7 天）</string>
+    <string name="btn_app_limit">应用限额（按应用设每日时长）</string>
     <string name="btn_review_book">错题本（查看 / 移除 / 清空）</string>
     <string name="btn_subject_grades">各科年级（可分别设置）</string>
     <string name="btn_eye_rest">护眼提醒（每 N 分钟看远处）</string>

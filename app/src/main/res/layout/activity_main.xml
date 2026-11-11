@@ -237,6 +237,28 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 应用级限额：按应用单独设每日时长，超时只挡该应用 -->
+        <TextView
+            android:id="@+id/tvAppLimit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_body"
+            android:layout_marginBottom="@dimen/spacing_small" />
+
+        <Button
+            android:id="@+id/btnAppLimit"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_app_limit"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 局域网家长面板：同一 Wi-Fi 下用手机浏览器管控 -->
         <Button
             android:id="@+id/btnLanPanel"

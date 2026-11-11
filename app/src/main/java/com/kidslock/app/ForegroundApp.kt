@@ -18,7 +18,7 @@ object ForegroundApp {
 
     data class Info(val packageName: String, val label: String)
 
-    fun current(context: Context): Info? {
+    fun current(context: Context, includeSelf: Boolean = false): Info? {
         if (!PermissionStatus.usageAccess(context)) return null
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: return null
@@ -35,7 +35,8 @@ object ForegroundApp {
             events.getNextEvent(event)
             if (!isForegroundEvent(event.eventType)) continue
             val pkg = event.packageName ?: continue
-            if (pkg == SELF_PACKAGE || pkg == "android") continue
+            if (pkg == "android") continue
+            if (!includeSelf && pkg == SELF_PACKAGE) continue
             if (event.timeStamp >= lastStamp) {
                 lastStamp = event.timeStamp
                 lastPackage = pkg

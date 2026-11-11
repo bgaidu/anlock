@@ -29,8 +29,8 @@ object SettingsBackup {
         root.put("version", SettingsCodec.VERSION)
         root.put("exportedAt", System.currentTimeMillis())
         val values = JSONObject()
-        for (key in SettingsCodec.ALLOWED_KEYS) {
-            if (!p.contains(key)) continue
+        for (key in p.all.keys.sorted()) {
+            if (!SettingsCodec.isAllowed(key)) continue
             val v = p.all[key] ?: continue
             values.put(key, packet(SettingsCodec.encode(v)))
         }

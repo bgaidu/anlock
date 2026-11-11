@@ -87,7 +87,6 @@ interface RewardSettings {
 interface AppOptionSettings {
     fun isAutoStart(): Boolean
     fun setAutoStart(enabled: Boolean)
-
     fun isEmergencyRebootUnlock(): Boolean
     fun setEmergencyRebootUnlock(enabled: Boolean)
 
@@ -119,4 +118,20 @@ interface AppOptionSettings {
 
     fun allowSettingsTemporarily(durationMs: Long = 2 * 60 * 1000L)
     fun isSettingsAllowedNow(): Boolean
+}
+
+interface AppLimitSettings {
+    fun isAppLimitEnabled(): Boolean
+    fun setAppLimitEnabled(enabled: Boolean)
+
+    fun getAppLimit(packageName: String): AppLimit
+    fun setAppLimit(packageName: String, weekdayMinutes: Int, weekendMinutes: Int)
+    fun clearAppLimit(packageName: String)
+    fun configuredAppPackages(): Set<String>
+    fun hasAppLimit(packageName: String): Boolean
+
+    fun getAppLimitBonusMinutes(packageName: String): Int
+    fun addAppLimitBonusMinutes(packageName: String, minutes: Int)
+    fun getAppLimitUsageOffsetMs(packageName: String): Long
+    fun setAppLimitUsageOffsetMs(packageName: String, offsetMs: Long)
 }

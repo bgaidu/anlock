@@ -39,6 +39,7 @@ object SettingsCodec {
         add("eye_rest_interval_min")
         add("schedule_enabled")
         add("schedule_free_mode")
+        add("app_limit_enabled")
         for (day in 0..6) {
             add("schedule_start_$day")
             add("schedule_end_$day")
@@ -48,7 +49,14 @@ object SettingsCodec {
         }
     }
 
-    fun isAllowed(key: String): Boolean = ALLOWED_KEYS.contains(key)
+    /** 按包名保存的应用限额键：只备份家长配置，不备份当日加时/重置偏移。 */
+    private val ALLOWED_PREFIXES = listOf(
+        "app_limit_min_",
+        "app_limit_weekend_"
+    )
+
+    fun isAllowed(key: String): Boolean =
+        ALLOWED_KEYS.contains(key) || ALLOWED_PREFIXES.any { key.startsWith(it) }
 
     data class Encoded(val type: String, val value: Any)
 
