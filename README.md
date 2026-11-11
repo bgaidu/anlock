@@ -131,7 +131,16 @@ kidslock/
 │   │   ├── LockScreenActivity.kt    # 锁屏答题界面
 │   │   ├── LockService.kt           # 计时前台服务 + 悬浮窗 + 守护
 │   │   ├── BootReceiver.kt          # 开机自启接收器
-│   │   ├── PrefManager.kt           # 持久化状态管理 + 计时对账 + PIN哈希
+│   │   ├── PrefManager.kt           # 设置门面：委托五个 Store + 计时对账/每日额度/锁屏状态
+│   │   ├── prefs/                   # 持久化存储（按职责拆分）
+│   │   │   ├── PrefKeys.kt          # 全部键名与默认值（备份兼容边界）
+│   │   │   ├── PrefSettings.kt      # 五个 Store 的公开接口
+│   │   │   ├── PinStore.kt          # PIN 哈希 / 旧明文升级 / 失败锁定
+│   │   │   ├── QuestionStore.kt     # 年级、科目、题型、自适应、最近答题
+│   │   │   ├── ScheduleStore.kt     # 周一~周日时段、跨零点、临时放行
+│   │   │   ├── RewardStore.kt       # 星星、连对、正确率、兑换比例
+│   │   │   ├── AppOptionsStore.kt   # 自启动、角标、周报、护眼、向导、LAN
+│   │   │   └── SubjectSelection / RecentAnswers / DailyLimitPolicy / ClockGuard
 │   │   └── question/                # 出题层（多科目分级题库）
 │   │       ├── Subject.kt           # 科目常量：pinyin/math/english/ciyu
 │   │       ├── Grade.kt             # 年级编码 0~6
@@ -274,6 +283,12 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - **数学题型扩充**：新增单位换算（米/厘米、千克/克、分钟/秒、升/毫升）、找规律（等差/等比）与应用题（单价、剩余、平均分、行程、周长、装箱），全部为整数答案，可直接用于填空输入；`MathSpecTest` 覆盖生成有效性与数值答案约束。
 - **护眼提醒**（默认关闭）：计时使用中按 15/20/30/45/60 分钟间隔全屏提示 20 秒"看远处"，悬浮窗实现，不打断正在播放的视频，也不影响计时；未授予悬浮窗权限时静默跳过并记录日志。
 - **工程债**：抽出 `SettingsCodec` 纯编解码并补 round-trip/兼容性单测（备份白名单同步新增分科年级、护眼等键）；`KidsLockApp` 安装全局未捕获异常处理器，崩溃原因写入诊断日志；诊断日志支持分享、复制、清空；Device Owner 增加 `DISALLOW_ADD_USER` 限制与锁定期 `setStatusBarDisabled`。
+
+### 工程债（1.0.1.19）
+
+- **`PrefManager` 按职责拆分**：原来一个 1000 行、几十组互不相干的键混在一个类里，改一处要通读全文。现拆为 `PinStore` / `QuestionStore` / `ScheduleStore` / `RewardStore` / `AppOptionsStore` 五个 Store（`prefs/` 包），键名与默认值集中到 `PrefKeys`；`PrefManager` 保留计时对账、每日额度、锁屏状态等强耦合逻辑，并通过 Kotlin `by` 委托暴露原方法——全项目 388 处 `pref.xxx()` 调用无需改动。
+- **纯逻辑可单测**：从 Android 依赖中抽出 `SubjectSelection`（科目解析/编码）、`RecentAnswers`（最近答题窗口与正确率）、`DailyLimitPolicy`（周末额度、本次可用分钟）、`ClockGuard`（墙钟跳跃判定），新增 23 项 JVM 单测；单测总数 56 → 79，构建仍全部离线完成。
+- **行为不变**：键名、默认值、迁移逻辑、备份兼容性、PIN 哈希与时段/额度边界均保持原样；`verify_schedule.py` 45 场景继续 ALL PASS。
 
 ### 小清理
 

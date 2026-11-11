@@ -1,0 +1,122 @@
+package com.kidslock.app.prefs
+
+import java.util.Calendar
+
+/**
+ * PrefManager 的存储契约。拆成五个内聚的小接口后：
+ * - 每个 Store 只关心自己的一组键，读代码不必在 1000 行里找；
+ * - PrefManager 通过 Kotlin 的 `by` 委托保持原有公开 API，调用方无需改动；
+ * - 以后做多孩子档案时，把这些 Store 换成带 profile 前缀的实现即可。
+ */
+interface PinSettings {
+    fun verifyPin(pin: String?): Boolean
+    fun setParentPin(pin: String?): Boolean
+    fun isPinModified(): Boolean
+    fun shouldForcePinChange(): Boolean
+    fun isPinUsable(): Boolean
+    fun isPinLocked(): Boolean
+    fun getPinLockRemainingMillis(): Long
+    fun recordPinFailure()
+    fun resetPinFailures()
+}
+
+interface QuestionSettings {
+    var grade: Int
+    var unlockCount: Int
+    var subjects: Set<String>
+
+    fun hasSubjectGrade(subject: String): Boolean
+    fun gradeFor(subject: String): Int
+    fun setSubjectGrade(subject: String, value: Int)
+    fun clearSubjectGrade(subject: String)
+
+    fun isJudgmentEnabled(): Boolean
+    fun setJudgmentEnabled(enabled: Boolean)
+    fun isReviewBoostEnabled(): Boolean
+    fun setReviewBoostEnabled(enabled: Boolean)
+    fun isFillBlankEnabled(): Boolean
+    fun setFillBlankEnabled(enabled: Boolean)
+    fun isAdaptiveDifficultyEnabled(): Boolean
+    fun setAdaptiveDifficultyEnabled(enabled: Boolean)
+    fun getAdaptiveGrade(baseGrade: Int): Int
+    fun setAdaptiveGrade(grade: Int)
+    fun clearAdaptiveGrade()
+
+    fun consumeRecentAnswers()
+    fun isSubjectEnabled(subject: String): Boolean
+    fun setSubjectEnabled(subject: String, enabled: Boolean): Boolean
+    fun getRecentAccuracyPercent(window: Int = RecentAnswers.WINDOW): Int
+    fun getRecentAnsweredCount(): Int
+}
+
+interface ScheduleSettings {
+    fun isScheduleEnabled(): Boolean
+    fun setScheduleEnabled(enabled: Boolean)
+    fun isScheduleFreeMode(): Boolean
+    fun setScheduleFreeMode(free: Boolean)
+
+    fun getScheduleStart(day: Int): Int
+    fun getScheduleEnd(day: Int): Int
+    fun setScheduleWindow(day: Int, startMin: Int, endMin: Int)
+    fun clearScheduleDay(day: Int)
+    fun scheduleDayIndex(now: Calendar = Calendar.getInstance()): Int
+    fun scheduleWindowLabel(day: Int): String
+    fun isWithinSchedule(now: Calendar = Calendar.getInstance()): Boolean
+
+    fun grantScheduleBypass(durationMs: Long = 30 * 60 * 1000L)
+    fun isScheduleBypassActive(): Boolean
+}
+
+interface RewardSettings {
+    fun getStarExchangeStars(): Int
+    fun getStarExchangeMinutes(): Int
+    fun setStarExchange(stars: Int, minutes: Int)
+
+    fun getStars(): Int
+    fun addStars(count: Int)
+    fun getBestCombo(): Int
+    fun recordCombo(combo: Int)
+
+    fun resetStats()
+    fun getStatTotal(): Int
+    fun getStatCorrect(): Int
+    fun getAccuracyPercent(): Int
+    fun recordAnswer(correct: Boolean)
+}
+
+interface AppOptionSettings {
+    fun isAutoStart(): Boolean
+    fun setAutoStart(enabled: Boolean)
+
+    fun isEmergencyRebootUnlock(): Boolean
+    fun setEmergencyRebootUnlock(enabled: Boolean)
+
+    fun isShowCountdown(): Boolean
+    fun setShowCountdown(enabled: Boolean)
+
+    fun isWeeklyReportEnabled(): Boolean
+    fun setWeeklyReportEnabled(enabled: Boolean)
+
+    fun isEyeRestEnabled(): Boolean
+    fun setEyeRestEnabled(enabled: Boolean)
+    fun getEyeRestIntervalMinutes(): Int
+    fun setEyeRestIntervalMinutes(minutes: Int)
+    fun eyeRestLastMs(): Long
+    fun markEyeRestShown()
+
+    fun isSetupWizardDone(): Boolean
+    fun setSetupWizardDone(done: Boolean)
+
+    fun isLanEnabled(): Boolean
+    fun setLanEnabled(enabled: Boolean)
+    fun getLanToken(): String
+    fun regenerateLanToken(): String
+
+    fun getLastBootTime(): Long
+    fun setLastBootTime(time: Long)
+    fun getRebootCount(): Int
+    fun setRebootCount(count: Int)
+
+    fun allowSettingsTemporarily(durationMs: Long = 2 * 60 * 1000L)
+    fun isSettingsAllowedNow(): Boolean
+}
