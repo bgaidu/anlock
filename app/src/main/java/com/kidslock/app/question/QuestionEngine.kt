@@ -12,7 +12,9 @@ class QuestionEngine private constructor(
     private val providers: List<QuestionProvider>,
     private val providerBySubject: Map<String, QuestionProvider>,
     private val schedule: List<String>,
-    private val grade: Int
+    private val grade: Int,
+    private val judgmentEnabled: Boolean,
+    private val reviewBoostEnabled: Boolean
 ) {
     companion object {
         private const val TAG = "KidsLock-Question"
@@ -48,7 +50,10 @@ class QuestionEngine private constructor(
             }
 
             val schedule = buildSchedule(effective, total, Random())
-            return QuestionEngine(ctx, list, bySubject, schedule, grade)
+            return QuestionEngine(
+                ctx, list, bySubject, schedule, grade,
+                pref.isJudgmentEnabled(), pref.isReviewBoostEnabled()
+            )
         }
 
         @JvmStatic
@@ -144,12 +149,15 @@ class QuestionEngine private constructor(
     private val random = Random()
     private var schedulePos = 0
     private val reviewQueue = ArrayDeque<Question>()
+    private var sinceJudgment = 0
 
     init {
-        // 到期错题优先复习：最多占本次解锁题量的 1/3（至少 1 道）
-        val total = schedule.size
-        val limit = ((total / 3).coerceAtLeast(1)).coerceAtMost(5)
-        reviewQueue.addAll(ReviewStore.dueQuestions(context, limit))
+        // 到期错题优先复习：最多占本次解锁题量的 1/3（至少 1 道）；家长可关闭
+        if (reviewBoostEnabled) {
+            val total = schedule.size
+            val limit = ((total / 3).coerceAtLeast(1)).coerceAtMost(5)
+            reviewQueue.addAll(ReviewStore.dueQuestions(context, limit))
+        }
     }
 
     /** 把答题结果写进错题池 / SM-2 复习计划。 */
@@ -168,15 +176,73 @@ class QuestionEngine private constructor(
     }
 
     private fun nextQuestion(relax: Boolean): Question? {
+        // 判断题：每 3 道左右穿插 1 道，避免题型过于单一
+        if (judgmentEnabled && sinceJudgment >= 3) {
+            val judgment = nextJudgmentQuestion()
+            if (judgment != null) {
+                sinceJudgment = 0
+                recent.offer(judgment.id)
+                return judgment
+            }
+        }
         for (attempt in 0 until MAX_ATTEMPTS) {
             val p = providerForScheduledSubject()
             val q = (p ?: providers[random.nextInt(providers.size)]).next(grade, random) ?: continue
             if (relax || !recent.contains(q.id)) {
                 recent.offer(q.id)
+                sinceJudgment++
                 return q
             }
         }
         return null
+    }
+
+    /**
+     * 用题库生成判断题：随机取一条，50% 展示正确读音/释义，50% 换成同题库里的另一条。
+     * 复用现有的「多选项」渲染，选项固定为「对 / 错」。
+     */
+    private fun nextJudgmentQuestion(): Question? {
+        val subjects = providers.map { it.subject() }.filter { it != Subject.MATH }
+        if (subjects.isEmpty()) return null
+        val subject = subjects[random.nextInt(subjects.size)]
+        val result = BankRepository.get(context).load(subject, grade)
+        if (result.entries.size < 4) return null
+        val entry = result.entries[random.nextInt(result.entries.size)]
+
+        val truthful = random.nextBoolean()
+        var shown = entry.v
+        if (!truthful) {
+            for (attempt in 0 until 12) {
+                val other = result.entries[random.nextInt(result.entries.size)]
+                if (other.v != entry.v) {
+                    shown = other.v
+                    break
+                }
+            }
+            // 题库里去重值不足时退回正确说法，避免出现"唯一答案也被判错"
+            if (shown == entry.v) return nextJudgmentFromProvider()
+        }
+
+        val hint = when (subject) {
+            Subject.PINYIN -> "判断：「${entry.k}」的读音是 ${shown} 吗？"
+            Subject.ENGLISH -> "判断：「${entry.k}」的意思是 ${shown} 吗？"
+            else -> "判断：「${entry.k}」的拼音是 ${shown} 吗？"
+        }
+        val options = listOf("✅ 对", "❌ 错")
+        return Question(
+            stem = entry.k,
+            hint = hint,
+            options = options,
+            correctIndex = if (truthful) 0 else 1,
+            subject = subject,
+            id = "judge:$subject:${entry.k}:$shown",
+            stemStyle = Question.StemStyle.NORMAL
+        )
+    }
+
+    private fun nextJudgmentFromProvider(): Question? {
+        val p = providers[random.nextInt(providers.size)]
+        return p.next(grade, random)
     }
 
     fun nextPreviewQuestion(): Question {

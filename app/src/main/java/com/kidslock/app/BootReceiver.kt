@@ -117,6 +117,12 @@ class BootReceiver : BroadcastReceiver() {
             Log.i(TAG, "Schedule guard enabled, starting service")
             startLockService(context)
         }
+        if (pref.isLanEnabled()) {
+            // 局域网面板需要常驻服务hosting
+            Log.i(TAG, "LAN panel enabled, starting service")
+            startLockService(context)
+        }
+        ScheduleAlarm.schedule(context)
     }
 
     private fun startLockService(context: Context) {

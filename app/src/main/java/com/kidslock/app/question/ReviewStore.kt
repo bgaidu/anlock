@@ -18,8 +18,6 @@ import java.nio.charset.StandardCharsets
 object ReviewStore {
     private const val FILE_NAME = "review_pool.json"
     private const val MAX_ENTRIES = 200
-    private const val MIN_EASE = 1.3
-    private const val MAX_EASE = 2.8
     private const val DAY_MS = 86_400_000L
 
     data class Item(
@@ -105,24 +103,22 @@ object ReviewStore {
 
     private fun applySm2(item: Item, correct: Boolean) {
         val today = epochDay(System.currentTimeMillis())
-        if (correct) {
-            item.reps += 1
-            item.intervalDays = when {
-                item.reps <= 1 -> 1
-                item.reps == 2 -> 6
-                else -> Math.round(item.intervalDays * item.ease).toInt().coerceAtLeast(1)
-            }
-            // SM-2 里 q=4（答对但不算轻松）
-            item.ease = (item.ease + 0.1 - (5 - 4) * (0.08 + (5 - 4) * 0.02))
-                .coerceIn(MIN_EASE, MAX_EASE)
-            item.dueDay = today + item.intervalDays
-        } else {
-            item.reps = 0
-            item.lapses += 1
-            item.intervalDays = 0
-            item.dueDay = today
-            item.ease = (item.ease - 0.2).coerceIn(MIN_EASE, MAX_EASE)
-        }
+        val next = Sm2.review(
+            Sm2.State(
+                ease = item.ease,
+                intervalDays = item.intervalDays,
+                dueDay = item.dueDay,
+                reps = item.reps,
+                lapses = item.lapses
+            ),
+            correct,
+            today
+        )
+        item.ease = next.ease
+        item.intervalDays = next.intervalDays
+        item.dueDay = next.dueDay
+        item.reps = next.reps
+        item.lapses = next.lapses
     }
 
     private fun toQuestion(item: Item): Question {

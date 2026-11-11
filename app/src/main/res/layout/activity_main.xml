@@ -200,9 +200,37 @@
             android:id="@+id/btnUsageHistory"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
-            android:layout_marginBottom="@dimen/spacing_medium"
+            android:layout_marginBottom="@dimen/spacing_small"
             android:minWidth="300dp"
             android:text="@string/btn_usage_history"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 周报：7 天柱状图 + 答题/星星/错题汇总 -->
+        <Button
+            android:id="@+id/btnWeeklyReport"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_weekly_report"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 局域网家长面板：同一 Wi-Fi 下用手机浏览器管控 -->
+        <Button
+            android:id="@+id/btnLanPanel"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_lan_panel"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"
@@ -544,6 +572,20 @@
                 android:nextFocusRight="@id/btnSubjectPinyin" />
         </LinearLayout>
 
+        <!-- 题型与复习：判断题、错题加练开关 -->
+        <Button
+            android:id="@+id/btnQuestionTypes"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_question_types"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <TextView
             android:id="@+id/tvSubjectWarning"
             android:layout_width="wrap_content"
@@ -660,6 +702,20 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 题库管理：按科目/年级查看条数、来源与预览，就地导入/导出/清除 -->
+        <Button
+            android:id="@+id/btnBankManager"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_bank_manager"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 权限检查（应用内逐项开启系统权限） -->
         <Button
             android:id="@+id/btnPermissions"
@@ -667,6 +723,20 @@
             android:layout_height="@dimen/btn_height"
             android:layout_marginTop="@dimen/spacing_medium"
             android:minWidth="300dp"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 管控体检：逐项显示拦截能力，点未就绪项直接去开 -->
+        <Button
+            android:id="@+id/btnHealth"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_health"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"

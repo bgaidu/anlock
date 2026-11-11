@@ -74,6 +74,11 @@
     <string name="export_done">已导出 %1$d 道题</string>
     <string name="export_empty">%1$s · %2$s 暂无题目可导出</string>
     <string name="export_failed">导出失败：请检查存储权限或换个保存位置</string>
+    <string name="btn_weekly_report">近 7 天报告（图表）</string>
+    <string name="btn_bank_manager">题库管理（按年级查看）</string>
+    <string name="btn_health">管控体检（锁不住？点这里）</string>
+    <string name="btn_lan_panel">局域网家长面板</string>
+    <string name="btn_question_types">题型与复习</string>
     <string name="clear_done">已清除 %1$s · %2$s 题库</string>
     <string name="clear_failed">清除失败</string>
 

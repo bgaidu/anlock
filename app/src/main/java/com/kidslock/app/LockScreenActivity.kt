@@ -259,10 +259,11 @@ class LockScreenActivity : AppCompatActivity() {
                     break
                 }
             }
-            tvFeedback.text = "答错了，重新开始！"
+            val correctText = currentOptions.getOrNull(currentQuestion.correctIndex) ?: ""
+            tvFeedback.text = "答错了，正确答案：$correctText · 已加入错题池，下次优先复习"
             tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
             tvFeedback.visibility = View.VISIBLE
-            scheduleNext(1500)
+            scheduleNext(2200)
         }
     }
 

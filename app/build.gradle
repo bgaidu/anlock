@@ -23,8 +23,8 @@ android {
         applicationId "com.kidslock.app"
         minSdk 21
         targetSdk 33
-        versionCode 18
-        versionName "1.0.1.15"
+        versionCode 19
+        versionName "1.0.1.16"
     }
 
     signingConfigs {
@@ -65,6 +65,18 @@ android {
             reset()
             include 'armeabi-v7a', 'arm64-v8a'
             universalApk true
+        }
+    }
+}
+
+// material 1.11.0 通过 kotlin-bom:1.8.22 约束 kotlin-stdlib-jdk7/jdk8，
+// 而离线缓存里只有 1.9.0（与项目使用的 Kotlin 版本一致）。
+// 不强制对齐时，解析单测/运行时 classpath 会去拉 1.8.22 并失败。
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jetbrains.kotlin' &&
+                details.requested.name.startsWith('kotlin-stdlib-jdk')) {
+            details.useVersion '1.9.0'
         }
     }
 }

@@ -21,6 +21,7 @@ class LockService : Service() {
         private const val CHANNEL_ID = "kids_lock_timer"
         private const val NOTIFICATION_ID = 1001
         private const val ACTION_UNLOCK = "com.kidslock.app.ACTION_UNLOCK"
+        private const val ACTION_LOCK = "com.kidslock.app.ACTION_LOCK"
         const val ACTION_HOLD_OVERLAY = "com.kidslock.app.ACTION_HOLD_OVERLAY"
 
         @Volatile
@@ -31,6 +32,18 @@ class LockService : Service() {
             val intent = Intent(context, LockService::class.java)
             intent.action = ACTION_UNLOCK
             context.startService(intent)
+        }
+
+        /** 立即锁定（家长面板 / 局域网操作使用）。 */
+        @JvmStatic
+        fun requestLock(context: Context) {
+            val intent = Intent(context, LockService::class.java)
+            intent.action = ACTION_LOCK
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "requestLock failed", e)
+            }
         }
     }
 
@@ -63,6 +76,15 @@ class LockService : Service() {
                 enforceSchedule()
             }
             override fun onExpired() {
+                if (pref.isScheduleEnabled() && pref.isScheduleFreeMode() && pref.isWithinSchedule()) {
+                    // 仅时段限制：时段内到点也不锁，直接结束本次计时
+                    Diag.i("Timer", "expired inside free window, no lock")
+                    pref.stopTimer()
+                    MediaPause.release(this@LockService)
+                    updateNotification()
+                    startScheduleGuard()
+                    return
+                }
                 triggerLock()
             }
         })
@@ -103,6 +125,19 @@ class LockService : Service() {
             return START_STICKY
         }
 
+        if (intent != null && ACTION_LOCK == intent.action) {
+            if (!pref.isLocked()) {
+                triggerLock()
+                // triggerLock 默认标记为"时间用完"，这里纠正成家长手动锁定，
+                // 否则仅时段限制模式会在下一个时段 tick 把它自动放行
+                pref.setLockReason(PrefManager.REASON_MANUAL)
+                return START_STICKY
+            }
+            // 已经锁定则继续走下面的锁定流程，补起守护/锁屏页
+        }
+
+        if (pref.isLanEnabled()) LanServer.start(this)
+
         if (intent != null && ACTION_HOLD_OVERLAY == intent.action) {
             if (!LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
                 overlayManager.showOverlayIfPermitted()
@@ -125,7 +160,7 @@ class LockService : Service() {
             return START_STICKY
         }
 
-        if (!pref.isTimerActive() && !pref.isScheduleEnabled()) {
+        if (!pref.isTimerActive() && !pref.isScheduleEnabled() && !pref.isLanEnabled()) {
             Log.i(TAG, "Timer not active and schedule off, stopping service")
             countdownOverlay.hide()
             Revival.cancel(this)
@@ -166,7 +201,8 @@ class LockService : Service() {
         override fun run() {
             if (!pref.isScheduleEnabled()) {
                 // 家长关掉时段限制后，不再常驻
-                if (!pref.isLocked() && !pref.isTimerActive()) {
+                ScheduleAlarm.cancel(this@LockService)
+                if (!pref.isLocked() && !pref.isTimerActive() && !pref.isLanEnabled()) {
                     handler.removeCallbacks(this)
                     stopForeground(true)
                     stopSelf()
@@ -174,12 +210,16 @@ class LockService : Service() {
                 return
             }
             if (pref.isLocked()) {
-                if (pref.isLockedBySchedule() && pref.isWithinSchedule() &&
-                    (pref.effectiveUnlockMinutes() > 0 ||
-                            (pref.isTimerActive() && pref.getRemainingMillis() > 0))
-                ) {
-                    releaseScheduleLock()
+                val shouldRelease = if (pref.isScheduleFreeMode()) {
+                    // 仅时段限制：时段内释放时段锁/计时锁，但保留家长手动「立即锁定」
+                    pref.isWithinSchedule() &&
+                            pref.getLockReason() != PrefManager.REASON_MANUAL
+                } else {
+                    pref.isWithinSchedule() && pref.isLockedBySchedule() &&
+                            (pref.effectiveUnlockMinutes() > 0 ||
+                                    (pref.isTimerActive() && pref.getRemainingMillis() > 0))
                 }
+                if (shouldRelease) releaseScheduleLock()
             } else if (!pref.isWithinSchedule()) {
                 triggerLock(bySchedule = true)
             }
@@ -192,6 +232,7 @@ class LockService : Service() {
     private fun startScheduleGuard() {
         handler.removeCallbacks(scheduleTick)
         handler.post(scheduleTick)
+        ScheduleAlarm.schedule(this)
     }
 
     /** 时段恢复：自动解除由时段触发的锁屏，并按当前额度开始一次计时。 */
@@ -204,8 +245,11 @@ class LockService : Service() {
         lockGuard.stop()
         MediaPause.release(this)
         handler.removeCallbacks(mediaTick)
-        // 优先恢复被时段锁打断的剩余时长；没有剩余才按额度开新的一段
-        if (pref.isTimerActive() && pref.getRemainingMillis() > 0) {
+        if (pref.isScheduleFreeMode()) {
+            // 仅时段限制：时段内自由使用，不恢复/新开计时
+            pref.stopTimer()
+        } else if (pref.isTimerActive() && pref.getRemainingMillis() > 0) {
+            // 优先恢复被时段锁打断的剩余时长；没有剩余才按额度开新的一段
             timerManager.start()
             updateCountdown(pref.getRemainingMillis())
         } else {
@@ -229,7 +273,9 @@ class LockService : Service() {
         handler.removeCallbacks(mediaTick)
         handler.postDelayed(mediaTick, 3000)
         pref.setLocked(true)
-        pref.setLockedBySchedule(bySchedule)
+        pref.setLockReason(
+            if (bySchedule) PrefManager.REASON_SCHEDULE else PrefManager.REASON_TIME
+        )
         pref.setHomeAliasEnabled(this, true)
         KioskManager.syncLockState(this)
         // 时段锁定不销毁本次剩余时长，时段恢复后接着用
@@ -311,10 +357,14 @@ class LockService : Service() {
             pref.isLocked() -> "设备已锁定，答对汉字即可解锁"
             !pref.isTimerActive() && pref.isScheduleEnabled() -> {
                 val day = pref.scheduleDayIndex()
-                if (pref.isWithinSchedule())
-                    "使用时段守护中 · 今天 ${pref.scheduleWindowLabel(day)}"
-                else
-                    "当前不在使用时段 · 今天 ${pref.scheduleWindowLabel(day)}"
+                when {
+                    pref.isWithinSchedule() && pref.isScheduleFreeMode() ->
+                        "时段内自由使用（仅时段限制）· 今天 ${pref.scheduleWindowLabel(day)}"
+                    pref.isWithinSchedule() ->
+                        "使用时段守护中 · 今天 ${pref.scheduleWindowLabel(day)}"
+                    else ->
+                        "当前不在使用时段 · 今天 ${pref.scheduleWindowLabel(day)}"
+                }
             }
             !timerManager.isScreenOn() -> "熄屏暂停中 · 剩余观看时间：${formatTime(remaining)}"
             else -> "剩余观看时间：${formatTime(remaining)}"
@@ -385,6 +435,7 @@ class LockService : Service() {
 
     override fun onDestroy() {
         Diag.i("Service", "destroyed")
+        LanServer.stop()
         timerManager.stop()
         timerManager.unregisterScreenListener()
         lockGuard.stop()

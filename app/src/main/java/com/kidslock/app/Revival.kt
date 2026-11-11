@@ -97,7 +97,8 @@ object Revival {
         val locked = pref.isLocked()
         val timerActive = pref.isTimerActive()
         val scheduleOn = pref.isScheduleEnabled()
-        if (!locked && !timerActive && !scheduleOn) {
+        val lanOn = pref.isLanEnabled()
+        if (!locked && !timerActive && !scheduleOn && !lanOn) {
             cancel(context)
             return
         }

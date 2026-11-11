@@ -9,17 +9,25 @@ import android.util.Log
 class AlarmReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_TIMER_CHECK = "com.kidslock.app.ACTION_TIMER_CHECK"
+        const val ACTION_SCHEDULE_CHECK = "com.kidslock.app.ACTION_SCHEDULE_CHECK"
         private const val TAG = "AlarmReceiver"
     }
 
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent == null || intent.action != ACTION_TIMER_CHECK) return
+        val action = intent?.action ?: return
+        if (action != ACTION_TIMER_CHECK && action != ACTION_SCHEDULE_CHECK) return
         val pref = PrefManager(context)
-        if (!pref.isTimerActive()) {
+
+        if (action == ACTION_TIMER_CHECK && !pref.isTimerActive()) {
             Log.i(TAG, "Timer not active, ignore expiry alarm")
             return
         }
-        Log.i(TAG, "Expiry alarm fired, restarting guard service")
+        if (action == ACTION_SCHEDULE_CHECK && !pref.isScheduleEnabled()) {
+            Log.i(TAG, "Schedule disabled, ignore boundary alarm")
+            return
+        }
+
+        Log.i(TAG, "Alarm fired ($action), restarting guard service")
         RecoveryAccessibilityService.trySelfEnable(context)
         try {
             val service = Intent(context, LockService::class.java)

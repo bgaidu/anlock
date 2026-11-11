@@ -43,6 +43,8 @@ class PrefManager(private val context: Context) {
         private const val PIN_LOCKOUT_MS = 30_000L
         private const val DEFAULT_QUESTION_GRADE = 3
         private const val DEFAULT_QUESTION_SUBJECTS = "pinyin,math"
+        private const val KEY_QUESTION_JUDGMENT = "question_judgment"
+        private const val KEY_REVIEW_BOOST = "review_boost"
         private const val SUBJECT_SEP = ","
         private val VALID_SUBJECTS = setOf("pinyin", "math", "english", "ciyu")
         private val SUBJECT_ORDER = arrayOf("pinyin", "math", "english", "ciyu")
@@ -61,6 +63,10 @@ class PrefManager(private val context: Context) {
         private const val KEY_DAILY_BYPASS_UNTIL = "daily_bypass_until"
         private const val KEY_USAGE_PREFIX = "usage_"
         private const val DEFAULT_DAILY_LIMIT_MIN = 0 // 0 = 不限制，保持旧行为
+        private const val KEY_LAST_SEEN_DAY = "last_seen_day"
+        private const val KEY_LAST_SEEN_WALL = "last_seen_wall"
+        private const val KEY_LAST_SEEN_ELAPSED = "last_seen_elapsed"
+        private const val KEY_CLOCK_ROLLBACK = "clock_rollback"
         // 使用时段：按周一~周日（下标 0=周一）存起止分钟数，-1 表示该天不限
         private const val KEY_SCHEDULE_ENABLED = "schedule_enabled"
         private const val KEY_SCHEDULE_START_PREFIX = "schedule_start_"
@@ -69,11 +75,21 @@ class PrefManager(private val context: Context) {
         private const val DEFAULT_SCHEDULE_START_MIN = 8 * 60
         private const val DEFAULT_SCHEDULE_END_MIN = 21 * 60
         private const val KEY_LOCKED_BY_SCHEDULE = "locked_by_schedule"
+        private const val KEY_LOCK_REASON = "lock_reason"
+        private const val KEY_SCHEDULE_FREE_MODE = "schedule_free_mode"
+        const val REASON_SCHEDULE = "schedule"
+        const val REASON_TIME = "time"
+        const val REASON_MANUAL = "manual"
         // 星星兑换：家长可自定义「多少颗星换多少分钟」
         private const val KEY_STAR_EXCHANGE_STARS = "star_exchange_stars"
         private const val KEY_STAR_EXCHANGE_MINUTES = "star_exchange_minutes"
         private const val KEY_BONUS_PENDING_MIN = "bonus_pending_min"
         private const val KEY_DAILY_BONUS_MIN = "daily_bonus_min"
+        // 局域网家长面板
+        private const val KEY_LAN_ENABLED = "lan_enabled"
+        private const val KEY_LAN_TOKEN = "lan_token"
+        private const val LAN_TOKEN_LENGTH = 10
+        private const val LAN_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val DEFAULT_STAR_EXCHANGE_STARS = 10
         private const val DEFAULT_STAR_EXCHANGE_MINUTES = 10
     }
@@ -81,10 +97,18 @@ class PrefManager(private val context: Context) {
     private val appContext: Context = context.applicationContext
     private val prefs: SharedPreferences = appContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
+    // 系统时间篡改检测用（内存里维护最近一次观察值，最多每分钟落盘一次）
+    private var lastWallCheck = 0L
+    private var lastElapsedCheck = 0L
+    private var lastStampPersist = 0L
+
     init {
         migrateLegacyTimer()
         migrateQuestionDefaults()
         migrateLegacyDefaults()
+        lastWallCheck = prefs.getLong(KEY_LAST_SEEN_WALL, 0)
+        lastElapsedCheck = prefs.getLong(KEY_LAST_SEEN_ELAPSED, 0)
+        lastStampPersist = lastElapsedCheck
     }
 
     private fun migrateLegacyTimer() {
@@ -250,6 +274,70 @@ class PrefManager(private val context: Context) {
     // 每天允许使用的起止时间，-1 表示该天不限制；跨零点（如 20:00–07:00）也支持。
     fun isScheduleEnabled(): Boolean = prefs.getBoolean(KEY_SCHEDULE_ENABLED, false)
 
+    /**
+     * 仅时段限制：时段内不自动计时、不要求答题（自由使用），时段外照常锁屏。
+     * false = 时段内仍需答题/计时管控（默认，保持原有行为）。
+     */
+    fun isScheduleFreeMode(): Boolean = prefs.getBoolean(KEY_SCHEDULE_FREE_MODE, false)
+
+    fun setScheduleFreeMode(free: Boolean) {
+        prefs.edit().putBoolean(KEY_SCHEDULE_FREE_MODE, free).apply()
+    }
+
+    // ===== 局域网家长面板 =====
+    fun isLanEnabled(): Boolean = prefs.getBoolean(KEY_LAN_ENABLED, false)
+
+    fun setLanEnabled(enabled: Boolean) {
+        val editor = prefs.edit().putBoolean(KEY_LAN_ENABLED, enabled)
+        if (enabled && prefs.getString(KEY_LAN_TOKEN, null).isNullOrEmpty()) {
+            editor.putString(KEY_LAN_TOKEN, generateLanToken())
+        }
+        editor.apply()
+    }
+
+    /** 访问口令：开启面板时自动生成，家长可重新生成让旧链接立即失效。 */
+    fun getLanToken(): String {
+        val existing = prefs.getString(KEY_LAN_TOKEN, null)
+        if (!existing.isNullOrEmpty()) return existing
+        val token = generateLanToken()
+        prefs.edit().putString(KEY_LAN_TOKEN, token).apply()
+        return token
+    }
+
+    fun regenerateLanToken(): String {
+        val token = generateLanToken()
+        prefs.edit().putString(KEY_LAN_TOKEN, token).apply()
+        return token
+    }
+
+    private fun generateLanToken(): String {
+        val random = SecureRandom()
+        val sb = StringBuilder(LAN_TOKEN_LENGTH)
+        repeat(LAN_TOKEN_LENGTH) {
+            sb.append(LAN_TOKEN_ALPHABET[random.nextInt(LAN_TOKEN_ALPHABET.length)])
+        }
+        return sb.toString()
+    }
+
+    /**
+     * 家长加时：计时中直接延长本轮剩余时长并抬高今日额度；
+     * 未计时（已锁定）则进入「待生效」池，下次解锁时并入。
+     */
+    fun addBonusMinutes(minutes: Int) {
+        if (minutes <= 0) return
+        rolloverDailyIfNeeded()
+        if (isTimerActive()) {
+            prefs.edit()
+                .putInt(KEY_DAILY_BONUS_MIN, getDailyBonusMinutes() + minutes)
+                .apply()
+            persistTimer(getRemainingMillis() + minutes * 60_000L)
+        } else {
+            prefs.edit()
+                .putInt(KEY_BONUS_PENDING_MIN, getBonusPendingMinutes() + minutes)
+                .apply()
+        }
+    }
+
     fun setScheduleEnabled(enabled: Boolean) {
         val editor = prefs.edit().putBoolean(KEY_SCHEDULE_ENABLED, enabled)
         if (enabled && !hasAnyScheduleWindow()) {
@@ -292,17 +380,15 @@ class PrefManager(private val context: Context) {
     }
 
     /** 0=周一 … 6=周日 */
-    fun scheduleDayIndex(now: Calendar = Calendar.getInstance()): Int {
-        val dow = now.get(Calendar.DAY_OF_WEEK) // 1=周日 … 7=周六
-        return if (dow == Calendar.SUNDAY) 6 else dow - 2
-    }
+    fun scheduleDayIndex(now: Calendar = Calendar.getInstance()): Int =
+        ScheduleMath.dayIndex(now)
 
     /** 该天时段的中文描述，例如 "08:00–21:00" / "不限"。 */
     fun scheduleWindowLabel(day: Int): String {
         val start = getScheduleStart(day)
         val end = getScheduleEnd(day)
         if (start < 0 || end < 0) return "不限"
-        return formatMinuteOfDay(start) + "–" + formatMinuteOfDay(end)
+        return ScheduleMath.format(start) + "–" + ScheduleMath.format(end)
     }
 
     /** 现在是否处于允许使用的时段内（未开启或当天不限时恒为 true）。 */
@@ -312,14 +398,8 @@ class PrefManager(private val context: Context) {
         val day = scheduleDayIndex(now)
         val start = getScheduleStart(day)
         val end = getScheduleEnd(day)
-        if (start < 0 || end < 0) return true
         val minutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        return if (start <= end) {
-            minutes in start until end
-        } else {
-            // 跨零点：20:00–07:00
-            minutes >= start || minutes < end
-        }
+        return ScheduleMath.isWithin(start, end, minutes)
     }
 
     /** 家长 PIN 放行：临时跳过使用时段限制。 */
@@ -341,10 +421,6 @@ class PrefManager(private val context: Context) {
         return false
     }
 
-    private fun formatMinuteOfDay(minutes: Int): String {
-        return String.format(Locale.US, "%02d:%02d", minutes / 60, minutes % 60)
-    }
-
     /** 本次解锁实际可用分钟数：同时受单次观看时长、今日剩余额度与星星奖励约束。 */
     fun effectiveUnlockMinutes(): Int {
         val bonus = getBonusPendingMinutes()
@@ -359,13 +435,59 @@ class PrefManager(private val context: Context) {
 
     private fun rolloverDailyIfNeeded() {
         val today = todayKey()
+        val wall = System.currentTimeMillis()
+        val elapsed = SystemClock.elapsedRealtime()
+        val lastDay = prefs.getString(KEY_LAST_SEEN_DAY, "") ?: ""
+
+        // 协议外改时间：墙钟比单调时钟走得更快（超过 2 小时，且本次间隔 < 10 分钟），
+        // 或日期直接回退，都视为篡改，保留当日已用额度不重置。
+        var suspicious = false
+        if (lastWallCheck > 0 && lastElapsedCheck > 0 && elapsed >= lastElapsedCheck) {
+            val wallDelta = wall - lastWallCheck
+            val elapsedDelta = elapsed - lastElapsedCheck
+            if (wallDelta - elapsedDelta > 2 * 3600_000L && elapsedDelta < 10 * 60_000L) {
+                suspicious = true
+            }
+        }
+        lastWallCheck = wall
+        lastElapsedCheck = elapsed
+
+        val rolledBack = lastDay.isNotEmpty() && today < lastDay
+        if (rolledBack || suspicious) {
+            if (!prefs.getBoolean(KEY_CLOCK_ROLLBACK, false)) {
+                prefs.edit().putBoolean(KEY_CLOCK_ROLLBACK, true).apply()
+                Diag.w("Clock", "time tampering detected: lastDay=$lastDay today=$today")
+            }
+            return
+        }
+
         if (prefs.getString(KEY_DAILY_DATE, "") != today) {
             prefs.edit()
                 .putString(KEY_DAILY_DATE, today)
+                .putString(KEY_LAST_SEEN_DAY, today)
                 .putLong(KEY_DAILY_USED_MS, 0)
                 .putInt(KEY_DAILY_BONUS_MIN, 0)
                 .apply()
+            lastStampPersist = elapsed
+            prefs.edit()
+                .putLong(KEY_LAST_SEEN_WALL, wall)
+                .putLong(KEY_LAST_SEEN_ELAPSED, elapsed)
+                .apply()
+        } else if (lastDay != today || elapsed - lastStampPersist > 60_000) {
+            lastStampPersist = elapsed
+            prefs.edit()
+                .putString(KEY_LAST_SEEN_DAY, today)
+                .putLong(KEY_LAST_SEEN_WALL, wall)
+                .putLong(KEY_LAST_SEEN_ELAPSED, elapsed)
+                .apply()
         }
+    }
+
+    /** 是否检测到系统时间被改回（家长确认后调用 clearClockRollback）。 */
+    fun wasClockRolledBack(): Boolean = prefs.getBoolean(KEY_CLOCK_ROLLBACK, false)
+
+    fun clearClockRollback() {
+        prefs.edit().remove(KEY_CLOCK_ROLLBACK).apply()
     }
 
     private fun todayKey(): String =
@@ -382,15 +504,22 @@ class PrefManager(private val context: Context) {
     fun setLocked(locked: Boolean) {
         val editor = prefs.edit().putBoolean(KEY_IS_LOCKED, locked)
         // 解锁时顺手清掉锁屏原因，避免下次误判为「时段锁」自动放行
-        if (!locked) editor.remove(KEY_LOCKED_BY_SCHEDULE)
+        if (!locked) {
+            editor.remove(KEY_LOCKED_BY_SCHEDULE)
+            editor.remove(KEY_LOCK_REASON)
+        }
         editor.apply()
     }
 
-    /** 标记这次锁定是「不在使用时段」触发的：时段恢复后可以自动放行。 */
-    fun setLockedBySchedule(bySchedule: Boolean) {
-        prefs.edit().putBoolean(KEY_LOCKED_BY_SCHEDULE, bySchedule).apply()
+    /** 锁定原因：schedule / time / manual（空表示未知，按 time 处理）。 */
+    fun setLockReason(reason: String) {
+        prefs.edit()
+            .putString(KEY_LOCK_REASON, reason)
+            .putBoolean(KEY_LOCKED_BY_SCHEDULE, reason == REASON_SCHEDULE)
+            .apply()
     }
 
+    fun getLockReason(): String = prefs.getString(KEY_LOCK_REASON, REASON_TIME) ?: REASON_TIME
     fun isLockedBySchedule(): Boolean = prefs.getBoolean(KEY_LOCKED_BY_SCHEDULE, false)
 
     fun isTimerActive(): Boolean = prefs.getBoolean(KEY_TIMER_ACTIVE, false)
@@ -618,6 +747,20 @@ class PrefManager(private val context: Context) {
         set(value) {
             prefs.edit().putString(KEY_QUESTION_SUBJECTS, joinSubjects(value)).apply()
         }
+
+    /** 判断题：在题库类科目（拼音/英语/语文）里穿插「这个读音/释义对吗」。 */
+    fun isJudgmentEnabled(): Boolean = prefs.getBoolean(KEY_QUESTION_JUDGMENT, false)
+
+    fun setJudgmentEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_QUESTION_JUDGMENT, enabled).apply()
+    }
+
+    /** 错题加练：每次解锁把到期的错题插到最前面（默认开启）。 */
+    fun isReviewBoostEnabled(): Boolean = prefs.getBoolean(KEY_REVIEW_BOOST, true)
+
+    fun setReviewBoostEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REVIEW_BOOST, enabled).apply()
+    }
 
     fun isSubjectEnabled(subject: String): Boolean = subjects.contains(subject)
 
