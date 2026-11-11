@@ -16,7 +16,9 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -41,6 +43,9 @@ import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -79,8 +84,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnDailyLimit: Button
     private lateinit var btnUsageHistory: Button
     private lateinit var btnWeeklyReport: Button
+    private lateinit var btnAppUsageRanking: Button
     private lateinit var btnLanPanel: Button
     private lateinit var btnQuestionTypes: Button
+    private lateinit var btnSubjectGrades: Button
+    private lateinit var btnEyeRest: Button
     private lateinit var btnExportBank: Button
     private lateinit var tvSchedule: TextView
     private lateinit var btnSchedule: Button
@@ -89,6 +97,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGuardStatus: Button
     private lateinit var btnPermissions: Button
     private lateinit var btnHealth: Button
+    private lateinit var btnSetupWizard: Button
     private lateinit var btnDiag: Button
     private var permStatusDirty = true
     private var permMissingCount = 0
@@ -97,6 +106,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSubjectWarning: TextView
     private lateinit var tvAccuracy: TextView
     private lateinit var btnResetStats: Button
+    private lateinit var btnReviewBook: Button
     private lateinit var tvPinStatus: TextView
     private val btnGrades = arrayOfNulls<Button>(7)
     private lateinit var btnSubjectPinyin: Button
@@ -110,6 +120,7 @@ class MainActivity : AppCompatActivity() {
     private val gatePinInput = StringBuilder()
     private var gateVerified = false
     private var pendingWeeklyReport = false
+    private var wizardAutoShown = false
 
     private val updateRunnable = object : Runnable {
         override fun run() {
@@ -263,6 +274,8 @@ class MainActivity : AppCompatActivity() {
         btnUsageHistory.setOnClickListener { showUsageHistoryDialog() }
         btnWeeklyReport = findViewById(R.id.btnWeeklyReport)
         btnWeeklyReport.setOnClickListener { showWeeklyReportDialog() }
+        btnAppUsageRanking = findViewById(R.id.btnAppUsageRanking)
+        btnAppUsageRanking.setOnClickListener { showAppUsageRankingDialog() }
         btnLanPanel = findViewById(R.id.btnLanPanel)
         btnLanPanel.setOnClickListener { showLanPanelDialog() }
         btnExportBank = findViewById(R.id.btnExportBank)
@@ -285,6 +298,8 @@ class MainActivity : AppCompatActivity() {
             updateStatus()
             toast(getString(R.string.toast_reset_stats))
         }
+        btnReviewBook = findViewById(R.id.btnReviewBook)
+        btnReviewBook.setOnClickListener { showReviewBookDialog() }
         tvPinStatus = findViewById(R.id.tvPinStatus)
         btnGrades[0] = findViewById(R.id.btnGrade0)
         btnGrades[1] = findViewById(R.id.btnGrade1)
@@ -299,10 +314,16 @@ class MainActivity : AppCompatActivity() {
         btnSubjectCitu = findViewById(R.id.btnSubjectCitu)
         btnQuestionTypes = findViewById(R.id.btnQuestionTypes)
         btnQuestionTypes.setOnClickListener { showQuestionTypesDialog() }
+        btnSubjectGrades = findViewById(R.id.btnSubjectGrades)
+        btnSubjectGrades.setOnClickListener { showSubjectGradesDialog() }
+        btnEyeRest = findViewById(R.id.btnEyeRest)
+        btnEyeRest.setOnClickListener { showEyeRestDialog() }
 
         btnPermissions = findViewById(R.id.btnPermissions)
         btnHealth = findViewById(R.id.btnHealth)
         btnHealth.setOnClickListener { showHealthDialog() }
+        btnSetupWizard = findViewById(R.id.btnSetupWizard)
+        btnSetupWizard.setOnClickListener { showSetupWizard() }
         btnPermissions.setOnClickListener {
             startActivity(Intent(this, PermissionActivity::class.java))
         }
@@ -396,6 +417,10 @@ class MainActivity : AppCompatActivity() {
             }
             if (pref.shouldForcePinChange()) {
                 promptPinChange(true)
+            } else if (!pref.isSetupWizardDone() && !wizardAutoShown) {
+                // 首次进入设置页（PIN 已验证）时主动拉起向导，避免“装了没生效”
+                wizardAutoShown = true
+                handler.post { showSetupWizard() }
             }
         } else {
             pref.recordPinFailure()
@@ -585,6 +610,20 @@ class MainActivity : AppCompatActivity() {
         builder.show()
     }
 
+    private fun showSetupWizard() {
+        SetupWizard.show(
+            this,
+            pref,
+            onSetPin = { showPinDialog() },
+            onChanged = {
+                if (!isFinishing && !isDestroyed) {
+                    permStatusDirty = true
+                    updateStatus()
+                }
+            }
+        )
+    }
+
     private fun showPinDialog() {
         val builder = AlertDialog.Builder(this)
         builder.setTitle("设置家长PIN码（4位数字）")
@@ -719,6 +758,126 @@ class MainActivity : AppCompatActivity() {
             .setView(textView)
             .setPositiveButton("关闭", null)
             .show()
+    }
+
+    private fun showAppUsageRankingDialog() {
+        if (!PermissionStatus.usageAccess(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("按应用使用排行")
+                .setMessage("需要「使用情况访问」权限才能统计各应用使用时长。")
+                .setPositiveButton("去开启") { _, _ ->
+                    HealthCheck.launch(this, HealthCheck.ID_USAGE)
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+            return
+        }
+        val entries = AppUsageStats.top(this, 7, 12)
+        val content = if (entries.isEmpty()) {
+            "近 7 天暂无足够的使用记录。\n\n" +
+                    "可能是刚开启「使用情况访问」，或本机系统限制了统计数据。"
+        } else {
+            val total = entries.sumOf { it.millis }
+            val sb = StringBuilder()
+            sb.append("本机统计，不会上传。\n\n")
+            for ((index, entry) in entries.withIndex()) {
+                val percent = if (total > 0) entry.millis * 100 / total else 0
+                sb.append(index + 1).append(". ").append(entry.label)
+                    .append("  ").append(AppUsageStats.formatDuration(entry.millis))
+                    .append("（").append(percent).append("%）\n")
+            }
+            sb.append("\n合计：").append(AppUsageStats.formatDuration(total))
+            sb.toString()
+        }
+        val textView = TextView(this).apply {
+            text = content
+            textSize = 14f
+            setTextIsSelectable(true)
+            setPadding(32, 24, 32, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("按应用使用排行（近 7 天）")
+            .setView(ScrollView(this).apply { addView(textView) })
+            .setPositiveButton("关闭", null)
+            .setNeutralButton("刷新") { _, _ -> handler.post { showAppUsageRankingDialog() } }
+            .show()
+    }
+
+    private fun showReviewBookDialog() {
+        val items = ReviewStore.all(this)
+        if (items.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("错题本")
+                .setMessage("错题本是空的。孩子答错的题会自动收进来，到期后在锁屏答题里优先复习。")
+                .setPositiveButton("关闭", null)
+                .show()
+            return
+        }
+        val primary = items.map { "【${Subject.label(it.subject)}】${it.stem}" }
+        val secondary = items.map { reviewDueLabel(it.dueDay) }
+        val adapter = object : ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_list_item_2,
+            android.R.id.text1,
+            primary
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                view.findViewById<TextView>(android.R.id.text1).text = primary[position]
+                view.findViewById<TextView>(android.R.id.text2).text = secondary[position]
+                return view
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("错题本（共 ${items.size} 题）")
+            .setAdapter(adapter) { _, which -> showReviewItemDialog(items[which]) }
+            .setNeutralButton("清空") { _, _ -> confirmClearReviewBook() }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun showReviewItemDialog(item: ReviewStore.Item) {
+        val answer = item.options.getOrNull(item.correctIndex) ?: ""
+        val message = buildString {
+            append("科目：").append(Subject.label(item.subject)).append('\n')
+            append("题干：").append(item.stem).append('\n')
+            if (item.hint.isNotBlank()) append("提示：").append(item.hint).append('\n')
+            append("正确答案：").append(answer).append('\n')
+            append("已复习 ").append(item.reps).append(" 次 · ").append(reviewDueLabel(item.dueDay))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("错题详情")
+            .setMessage(message)
+            .setPositiveButton("移除这道题") { _, _ ->
+                ReviewStore.remove(this, item.key)
+                updateStatus()
+                toast("已从错题本移除")
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun confirmClearReviewBook() {
+        val count = ReviewStore.all(this).size
+        AlertDialog.Builder(this)
+            .setTitle("清空错题本")
+            .setMessage("将删除全部 $count 道错题，且不可恢复。确定继续？")
+            .setPositiveButton("清空") { _, _ ->
+                ReviewStore.clear(this)
+                updateStatus()
+                toast("错题本已清空")
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun reviewDueLabel(dueDay: Long): String {
+        val today = System.currentTimeMillis() / 86_400_000L
+        return when {
+            dueDay <= today -> "今天复习"
+            dueDay == today + 1 -> "明天复习"
+            else -> SimpleDateFormat("MM-dd", Locale.US).format(Date(dueDay * 86_400_000L)) + " 复习"
+        }
     }
 
     private fun showLanPanelDialog() {
@@ -877,7 +1036,7 @@ class MainActivity : AppCompatActivity() {
     private val scheduleDayNames = arrayOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
 
     private fun showScheduleDialog() {
-        val labels = arrayOfNulls<String>(9)
+        val labels = arrayOfNulls<String>(11)
         labels[0] = if (pref.isScheduleEnabled())
             "时段限制：已开启（点击关闭）"
         else
@@ -889,6 +1048,8 @@ class MainActivity : AppCompatActivity() {
         for (day in 0..6) {
             labels[day + 2] = "${scheduleDayNames[day]}：${pref.scheduleWindowLabel(day)}"
         }
+        labels[9] = "工作日（周一–周五）统一设置…"
+        labels[10] = "复制某天到其他天…"
         AlertDialog.Builder(this)
             .setTitle("使用时段（只在这些时间段内可用）")
             .setItems(labels) { _, which ->
@@ -922,6 +1083,8 @@ class MainActivity : AppCompatActivity() {
                             else "时段内仍需答题换时长"
                         )
                     }
+                    9 -> showWeekdayScheduleDialog()
+                    10 -> showCopyScheduleSourceDialog()
                     else -> showScheduleDayDialog(which - 2)
                 }
             }
@@ -937,7 +1100,8 @@ class MainActivity : AppCompatActivity() {
             "09:00–21:00",
             "18:00–21:00",
             "20:00–22:00",
-            "自定义…"
+            "自定义…",
+            "复制到其他天…"
         )
         AlertDialog.Builder(this)
             .setTitle("${scheduleDayNames[day]} 使用时段")
@@ -949,6 +1113,7 @@ class MainActivity : AppCompatActivity() {
                         toast("${scheduleDayNames[day]}：已取消限制")
                     }
                     6 -> promptCustomScheduleWindow(day)
+                    7 -> showCopyScheduleTargetsDialog(day)
                     else -> {
                         val (start, end) = parsePresetWindow(presets[which])
                         pref.setScheduleWindow(day, start, end)
@@ -963,6 +1128,97 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** 工作日一次性设置，避免周一到周五重复点五次。 */
+    private fun showWeekdayScheduleDialog() {
+        val presets = arrayOf(
+            "不限（关闭工作日限制）",
+            "07:00–20:00",
+            "08:00–21:00",
+            "09:00–21:00",
+            "18:00–21:00",
+            "20:00–22:00",
+            "自定义…"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("工作日（周一–周五）统一设置")
+            .setItems(presets) { _, which ->
+                when (which) {
+                    0 -> applyScheduleToDays(0..4, -1, -1)
+                    6 -> promptCustomWeekdayWindow()
+                    else -> {
+                        val (start, end) = parsePresetWindow(presets[which])
+                        applyScheduleToDays(0..4, start, end)
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun promptCustomWeekdayWindow() {
+        val startInit = pref.getScheduleStart(0).takeIf { it >= 0 } ?: (8 * 60)
+        promptTime("工作日开始时间（HH:mm）", startInit) { start ->
+            val endInit = pref.getScheduleEnd(0).takeIf { it >= 0 } ?: (21 * 60)
+            promptTime("工作日结束时间（HH:mm，可早于开始表示跨零点）", endInit) { end ->
+                if (start == end) {
+                    toast("开始时间和结束时间不能相同")
+                } else {
+                    applyScheduleToDays(0..4, start, end)
+                }
+            }
+        }
+    }
+
+    /** 选择要复制的源日期。 */
+    private fun showCopyScheduleSourceDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("复制哪一天的时段？")
+            .setItems(scheduleDayNames) { _, day ->
+                showCopyScheduleTargetsDialog(day)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** 把某天的时段复制到勾选的其他天（可跨天批量复制）。 */
+    private fun showCopyScheduleTargetsDialog(sourceDay: Int) {
+        val start = pref.getScheduleStart(sourceDay)
+        val end = pref.getScheduleEnd(sourceDay)
+        val checked = BooleanArray(7)
+        AlertDialog.Builder(this)
+            .setTitle("把 ${scheduleDayNames[sourceDay]}（${pref.scheduleWindowLabel(sourceDay)}）复制到")
+            .setMultiChoiceItems(scheduleDayNames, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("复制") { _, _ ->
+                val targets = (0..6).filter { it != sourceDay && checked[it] }
+                if (targets.isEmpty()) {
+                    toast("没有选择目标日期")
+                    return@setPositiveButton
+                }
+                applyScheduleToDays(targets, start, end)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun applyScheduleToDays(days: Iterable<Int>, start: Int, end: Int) {
+        for (day in days) {
+            if (start < 0 || end < 0) pref.clearScheduleDay(day)
+            else pref.setScheduleWindow(day, start, end)
+        }
+        if (start >= 0 && end >= 0) {
+            if (!pref.isScheduleEnabled()) {
+                pref.setScheduleEnabled(true)
+                startLockService()
+            }
+        }
+        updateStatus()
+        val summary = if (start < 0 || end < 0) "已取消限制"
+        else ScheduleMath.format(start) + "–" + ScheduleMath.format(end)
+        toast("已应用到 ${days.count()} 天：$summary")
     }
 
     private fun parsePresetWindow(text: String): Pair<Int, Int> {
@@ -1023,10 +1279,35 @@ class MainActivity : AppCompatActivity() {
         val items = HealthCheck.items(this)
         val labels = items.map {
             (if (it.ok) "✅ " else "⚠️ ") + it.title + "：" + it.state
-        }.toTypedArray()
+        }
+        val adapter = object : ArrayAdapter<String>(
+            this,
+            android.R.layout.simple_list_item_2,
+            android.R.id.text1,
+            labels
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                val item = items[position]
+                view.findViewById<TextView>(android.R.id.text1).text = labels[position]
+                val second = view.findViewById<TextView>(android.R.id.text2)
+                if (item.ok) {
+                    second.text = ""
+                } else {
+                    second.text = "影响：" + item.impact
+                    second.setTextColor(
+                        ContextCompat.getColor(
+                            this@MainActivity,
+                            R.color.wrong_red
+                        )
+                    )
+                }
+                return view
+            }
+        }
         AlertDialog.Builder(this)
             .setTitle("管控体检（${items.count { !it.ok }} 项未就绪）")
-            .setItems(labels) { _, which -> onHealthItem(items[which]) }
+            .setAdapter(adapter) { _, which -> onHealthItem(items[which]) }
             .setPositiveButton("权限总览") { _, _ ->
                 startActivity(Intent(this, PermissionActivity::class.java))
             }
@@ -1078,14 +1359,25 @@ class MainActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle("诊断日志（最近 300 行）")
             .setView(scroll)
-            .setPositiveButton("复制全部") { _, _ ->
-                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                cm?.setPrimaryClip(ClipData.newPlainText("kidslock-diagnostics", content))
-                toast("日志已复制到剪贴板")
+            .setPositiveButton("分享日志") { _, _ ->
+                shareText(content, "儿童锁屏诊断日志", "分享诊断日志")
             }
-            .setNeutralButton("清空") { _, _ ->
-                Diag.clear(this)
-                toast("日志已清空")
+            .setNeutralButton("更多") { _, _ ->
+                AlertDialog.Builder(this)
+                    .setItems(arrayOf("复制全部", "清空日志")) { _, which ->
+                        if (which == 0) {
+                            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            cm?.setPrimaryClip(
+                                ClipData.newPlainText("kidslock-diagnostics", content)
+                            )
+                            toast("日志已复制到剪贴板")
+                        } else {
+                            Diag.clear(this)
+                            toast("日志已清空")
+                        }
+                    }
+                    .setNegativeButton("关闭", null)
+                    .show()
             }
             .setNegativeButton("关闭", null)
             .create()
@@ -1096,6 +1388,19 @@ class MainActivity : AppCompatActivity() {
             )
         }
         dialog.show()
+    }
+
+    private fun shareText(text: String, subject: String, chooserTitle: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        try {
+            startActivity(Intent.createChooser(intent, chooserTitle))
+        } catch (e: ActivityNotFoundException) {
+            toast("没有可用的分享应用")
+        }
     }
 
     private fun updateStatus() {
@@ -1120,6 +1425,10 @@ class MainActivity : AppCompatActivity() {
         if (bypassRisk > 0) {
             btnHealth.append(" · 绕过风险 $bypassRisk")
         }
+        btnSetupWizard.text = if (pref.isSetupWizardDone())
+            "首次配置向导：已完成（点此复查）"
+        else
+            "首次配置向导：未完成（建议先做）"
 
         // 一个拦截能力都没有时明确说「已失效」，而不是只显示缺几项
         val monitoring = PermissionStatus.overlay(this) ||
@@ -1178,12 +1487,25 @@ class MainActivity : AppCompatActivity() {
                 if (pref.isAdaptiveDifficultyEnabled())
                     " · 自适应当前 ${Grade.fullLabel(pref.getAdaptiveGrade(pref.grade))}"
                 else ""
+        val gradeOverrides = Subject.ORDER.mapNotNull { s ->
+            if (pref.hasSubjectGrade(s)) {
+                Subject.label(s) + Grade.shortLabel(pref.gradeFor(s))
+            } else null
+        }.joinToString(" / ")
+        btnSubjectGrades.text = if (gradeOverrides.isEmpty())
+            "各科年级（当前全部跟随总年级）"
+        else
+            "各科年级：$gradeOverrides"
         tvQuestionSubjects.text = "科目：${enabledSubjectsText()}"
         btnQuestionTypes.text = "题型与复习：判断" +
                 (if (pref.isJudgmentEnabled()) "开" else "关") +
                 " · 填空" + (if (pref.isFillBlankEnabled()) "开" else "关") +
                 " · 错题加练" + (if (pref.isReviewBoostEnabled()) "开" else "关") +
                 " · 自适应" + (if (pref.isAdaptiveDifficultyEnabled()) "开" else "关")
+        btnEyeRest.text = if (pref.isEyeRestEnabled())
+            "护眼提醒：每 ${pref.getEyeRestIntervalMinutes()} 分钟（全屏 20 秒）"
+        else
+            "护眼提醒：已关闭"
         for (g in 0..6) {
             setButtonSelected(btnGrades[g]!!, g == pref.grade, Grade.shortLabel(g))
         }
@@ -1295,6 +1617,84 @@ class MainActivity : AppCompatActivity() {
     private fun isOnlyEnabled(subject: String): Boolean {
         val s = pref.subjects
         return s.size == 1 && s.contains(subject)
+    }
+
+    private fun showEyeRestDialog() {
+        val intervals = intArrayOf(15, 20, 30, 45, 60)
+        val current = pref.getEyeRestIntervalMinutes()
+        val labels = arrayOfNulls<String>(intervals.size + 1)
+        labels[0] = if (pref.isEyeRestEnabled()) "关闭护眼提醒" else "关闭护眼提醒（当前）"
+        for (i in intervals.indices) {
+            val mark = if (pref.isEyeRestEnabled() && current == intervals[i]) "（当前）" else ""
+            labels[i + 1] = "每 ${intervals[i]} 分钟提醒一次$mark"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("护眼提醒（每次全屏 20 秒）")
+            .setItems(labels) { _, which ->
+                if (which == 0) {
+                    pref.setEyeRestEnabled(false)
+                    Toast.makeText(
+                        this,
+                        "已关闭护眼提醒（已显示的提醒会自然结束）",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    val minutes = intervals[which - 1]
+                    pref.setEyeRestIntervalMinutes(minutes)
+                    pref.setEyeRestEnabled(true)
+                    Toast.makeText(
+                        this,
+                        "已开启：每 $minutes 分钟提醒看远处 20 秒",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                updateStatus()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showSubjectGradesDialog() {
+        val subjects = Subject.ORDER
+        val labels = subjects.map { s ->
+            val g = pref.gradeFor(s)
+            if (pref.hasSubjectGrade(s)) {
+                "${Subject.label(s)}：${Grade.fullLabel(g)}（独立）"
+            } else {
+                "${Subject.label(s)}：跟随总年级（${Grade.fullLabel(g)}）"
+            }
+        }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("各科年级（自适应只作用于跟随总年级的科目）")
+            .setItems(labels) { _, which -> showSubjectGradePicker(subjects[which]) }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun showSubjectGradePicker(subject: String) {
+        val base = pref.grade
+        val labels = Array(Grade.MAX - Grade.MIN + 2) { index ->
+            if (index == 0) "跟随总年级（${Grade.fullLabel(base)}）"
+            else Grade.fullLabel(index - 1 + Grade.MIN)
+        }
+        val current = if (pref.hasSubjectGrade(subject)) pref.gradeFor(subject) - Grade.MIN + 1 else 0
+        AlertDialog.Builder(this)
+            .setTitle("${Subject.label(subject)} 年级")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                if (which == 0) {
+                    pref.clearSubjectGrade(subject)
+                } else {
+                    pref.setSubjectGrade(subject, which - 1 + Grade.MIN)
+                }
+                dialog.dismiss()
+                updateStatus()
+                toast(
+                    if (which == 0) "${Subject.label(subject)}：跟随总年级"
+                    else "${Subject.label(subject)}：${Grade.fullLabel(pref.gradeFor(subject))}"
+                )
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun gradeLabels(): Array<String> {

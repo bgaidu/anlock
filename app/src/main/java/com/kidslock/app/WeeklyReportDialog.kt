@@ -40,6 +40,15 @@ object WeeklyReportDialog {
             append("星星：").append(pref.getStars()).append(" 颗 · 最高连对 ")
                 .append(pref.getBestCombo()).append(" 题\n")
             append("错题待复习：").append(ReviewStore.dueCount(activity)).append(" 道")
+            val apps = AppUsageStats.top(activity, 7, 5)
+            if (apps.isNotEmpty()) {
+                append("\n\n使用最多的应用：\n")
+                for ((index, entry) in apps.withIndex()) {
+                    append(index + 1).append(". ").append(entry.label)
+                        .append("  ").append(AppUsageStats.formatDuration(entry.millis))
+                    if (index != apps.lastIndex) append('\n')
+                }
+            }
         }
         val summary = TextView(activity).apply {
             text = summaryText

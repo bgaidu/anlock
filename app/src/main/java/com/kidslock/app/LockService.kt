@@ -74,6 +74,7 @@ class LockService : Service() {
                 updateCountdown(remainingMillis)
                 checkCapabilities()
                 enforceSchedule()
+                checkEyeRest()
             }
             override fun onExpired() {
                 if (pref.isScheduleEnabled() && pref.isScheduleFreeMode() && pref.isWithinSchedule()) {
@@ -268,6 +269,7 @@ class LockService : Service() {
     private fun triggerLock(bySchedule: Boolean = false) {
         Log.i(TAG, "Triggering lock screen! schedule=$bySchedule")
         Diag.i("Lock", if (bySchedule) "triggered by schedule" else "triggered")
+        EyeRestOverlay.hide()
         countdownOverlay.hide()
         MediaPause.pause(this)
         handler.removeCallbacks(mediaTick)
@@ -406,6 +408,27 @@ class LockService : Service() {
             countdownOverlay.show(remainingMillis)
         } else {
             countdownOverlay.hide()
+        }
+    }
+
+    /**
+     * 护眼提醒：计时使用中每 N 分钟全屏提示一次。默认关闭；
+     * 提醒本身只有 20 秒且不影响计时。
+     */
+    private fun checkEyeRest() {
+        if (!pref.isEyeRestEnabled() || pref.isLocked()) return
+        if (!timerManager.isScreenOn() || EyeRestOverlay.isShowing()) return
+        val now = System.currentTimeMillis()
+        val last = pref.eyeRestLastMs()
+        if (last <= 0L || last > now) {
+            pref.markEyeRestShown()
+            return
+        }
+        val interval = pref.getEyeRestIntervalMinutes() * 60_000L
+        if (now - last >= interval) {
+            // 即使悬浮窗权限缺失也推进时间戳，避免每秒重试刷日志
+            EyeRestOverlay.show(this)
+            pref.markEyeRestShown()
         }
     }
 

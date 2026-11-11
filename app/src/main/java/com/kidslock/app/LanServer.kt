@@ -12,6 +12,9 @@ import java.net.Socket
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 局域网家长面板：同一 Wi-Fi 下用手机/电脑浏览器查看状态、锁定、放行、加时。
@@ -38,6 +41,27 @@ object LanServer {
     @Volatile
     var lastError: String? = null
         private set
+
+    /** 最近 20 次家长操作（谁、何时、做了什么），只在内存里保留。 */
+    data class ActionLog(
+        val time: Long,
+        val ip: String,
+        val command: String,
+        val result: String
+    )
+
+    private const val MAX_LOGS = 20
+    private val actionLogs = ArrayList<ActionLog>()
+    private val logLock = Any()
+
+    fun recentLogs(): List<ActionLog> = synchronized(logLock) { actionLogs.toList() }
+
+    private fun logAction(ip: String, command: String, result: String) {
+        synchronized(logLock) {
+            actionLogs.add(0, ActionLog(System.currentTimeMillis(), ip, command, result))
+            while (actionLogs.size > MAX_LOGS) actionLogs.removeAt(actionLogs.size - 1)
+        }
+    }
 
     fun isRunning(): Boolean = acceptThread?.isAlive == true
 
@@ -147,7 +171,8 @@ object LanServer {
         when (path) {
             "/", "/index.html" -> respond(socket, 200, "text/html; charset=utf-8", buildPage(ctx, pref, query["msg"]))
             "/action" -> {
-                val msg = handleAction(ctx, pref, query)
+                val ip = socket.inetAddress?.hostAddress ?: "unknown"
+                val msg = handleAction(ctx, pref, query, ip)
                 val location = "/?t=" + urlEncode(pref.getLanToken()) + "&msg=" + urlEncode(msg)
                 respond(socket, 303, "text/plain; charset=utf-8", "", mapOf("Location" to location))
             }
@@ -172,8 +197,13 @@ object LanServer {
         return text.lineSequence().firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    private fun handleAction(ctx: Context, pref: PrefManager, query: Map<String, String>): String {
-        return when (query["cmd"]) {
+    private fun handleAction(
+        ctx: Context,
+        pref: PrefManager,
+        query: Map<String, String>,
+        ip: String
+    ): String {
+        val result = when (query["cmd"]) {
             "lock" -> {
                 lockNow(ctx, pref)
                 "已立即锁定"
@@ -195,6 +225,16 @@ object LanServer {
             }
             else -> "未知操作"
         }
+        val command = when (query["cmd"]) {
+            "lock" -> "立即锁定"
+            "unlock" -> "放行"
+            "bonus" -> "加时"
+            "stop" -> "结束本轮并锁定"
+            else -> query["cmd"] ?: "未知"
+        }
+        logAction(ip, command, result)
+        Diag.i("Lan", "action from $ip: $command -> $result")
+        return result
     }
 
     private fun lockNow(ctx: Context, pref: PrefManager) {
@@ -265,11 +305,12 @@ object LanServer {
                 PrefManager.REASON_MANUAL -> "已锁定（家长手动）"
                 else -> "已锁定（时间用完）"
             }
-            timerActive -> "使用中 · 剩余 " + formatDuration(pref.getRemainingMillis())
+            timerActive -> "使用中"
             pref.isScheduleEnabled() && pref.isScheduleFreeMode() && pref.isWithinSchedule() ->
                 "时段内自由使用（仅时段限制）"
             else -> "未锁定"
         }
+        val remainingText = if (pref.isTimerActive()) formatDuration(pref.getRemainingMillis()) else "—"
         val dailyLimit = pref.getDailyLimitMinutes()
         val usedMinutes = (pref.getDailyUsedMs() + 59_999) / 60_000
         val dailyText = if (dailyLimit <= 0) "已用 ${usedMinutes} 分钟（未设上限）"
@@ -281,6 +322,24 @@ object LanServer {
             "今天 " + pref.scheduleWindowLabel(pref.scheduleDayIndex()) +
                     if (pref.isScheduleFreeMode()) "（时段内自由）" else "（时段内答题）"
         else "未开启"
+        val apps = AppUsageStats.top(ctx, 7, 5)
+        val appRows = if (apps.isEmpty()) {
+            "<div class=\"row\"><span>近 7 天常用</span><b>暂无数据（需使用情况权限）</b></div>"
+        } else {
+            apps.joinToString("") { entry ->
+                "<div class=\"row\"><span>${esc(entry.label)}</span><b>" +
+                        "${AppUsageStats.formatDuration(entry.millis)}</b></div>"
+            }
+        }
+        val logs = recentLogs()
+        val logRows = if (logs.isEmpty()) {
+            "<div class=\"row\"><span>操作日志</span><b>暂无</b></div>"
+        } else {
+            logs.take(8).joinToString("") { log ->
+                "<div class=\"row\"><span>${formatClock(log.time)} · ${esc(log.ip)}</span><b>" +
+                        "${esc(log.command)} · ${esc(log.result)}</b></div>"
+            }
+        }
         val version = try {
             ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
         } catch (e: Exception) {
@@ -291,11 +350,16 @@ object LanServer {
         val body = """
             $msgHtml
             <div class="card">
-              <div class="row"><span>当前状态</span><b>${esc(stateText)}</b></div>
-              <div class="row"><span>正在使用</span><b>${esc(foregroundText)}</b></div>
+              <div class="row"><span>当前状态</span><b id="state">${esc(stateText)}</b></div>
+              <div class="row"><span>本轮剩余</span><b id="remaining">${esc(remainingText)}</b></div>
+              <div class="row"><span>正在使用</span><b id="foreground">${esc(foregroundText)}</b></div>
               <div class="row"><span>使用时段</span><b>${esc(scheduleText)}</b></div>
-              <div class="row"><span>今日时长</span><b>${esc(dailyText)}</b></div>
-              <div class="row"><span>星星</span><b>${pref.getStars()} 颗</b></div>
+              <div class="row"><span>今日时长</span><b id="daily">${esc(dailyText)}</b></div>
+              <div class="row"><span>星星</span><b id="stars">${pref.getStars()} 颗</b></div>
+            </div>
+            <div class="card">
+              <div class="row"><span>近 7 天应用排行</span><b>本机统计</b></div>
+              $appRows
             </div>
             <div class="grid">
               <a class="btn danger" href="$action&cmd=lock">立即锁定</a>
@@ -306,6 +370,10 @@ object LanServer {
               <a class="btn" href="$action&cmd=stop">结束本轮并锁定</a>
               <a class="btn ghost" href="/?t=${urlEncode(token)}">刷新</a>
             </div>
+            <div class="card">
+              <div class="row"><span>最近家长操作（最多 20 条）</span><b>来源 IP · 命令</b></div>
+              $logRows
+            </div>
             <p class="hint">同一 Wi-Fi 下可访问；本页链接含访问口令，请勿转发给小孩。${
             if (version.isNotEmpty()) "版本 $version" else ""
         }</p>
@@ -313,12 +381,14 @@ object LanServer {
         return page("家长面板", body)
     }
 
+    private fun formatClock(timestamp: Long): String =
+        SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(timestamp))
+
     private fun page(title: String, body: String): String = """
         <!doctype html>
         <html lang="zh-CN"><head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <meta http-equiv="refresh" content="20">
         <title>$title · 儿童锁屏</title>
         <style>
           :root { color-scheme: light dark; }
@@ -347,6 +417,48 @@ object LanServer {
         <body>
         <h1>儿童锁屏 · $title</h1>
         $body
+        <script>
+        (function () {
+          var token = new URLSearchParams(location.search).get('t') || '';
+          function setText(id, value) {
+            var el = document.getElementById(id);
+            if (el && value !== undefined && value !== null) el.textContent = value;
+          }
+          function fmt(ms) {
+            var total = Math.max(0, Math.floor(ms / 1000));
+            var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+            function pad(n) { return (n < 10 ? '0' : '') + n; }
+            return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : pad(m) + ':' + pad(s);
+          }
+          function paint(s) {
+            var state;
+            if (s.locked) {
+              state = s.lockReason === 'schedule' ? '已锁定（不在使用时段）'
+                : (s.lockReason === 'manual' ? '已锁定（家长手动）' : '已锁定（时间用完）');
+            } else if (s.timerActive) {
+              state = '使用中';
+            } else {
+              state = '未锁定';
+            }
+            setText('state', state);
+            setText('remaining', s.timerActive ? fmt(s.remainingMs) : '—');
+            setText('foreground', s.foregroundApp || s.foregroundPackage || '未知（可能刚熄屏）');
+            var used = Math.ceil(s.dailyUsedMs / 60000);
+            setText('daily', s.dailyLimitMin > 0
+              ? '已用 ' + used + ' / ' + s.dailyLimitMin + ' 分钟'
+              : '已用 ' + used + ' 分钟（未设上限）');
+            setText('stars', s.stars + ' 颗');
+          }
+          function tick() {
+            fetch('/api/status?t=' + encodeURIComponent(token), { cache: 'no-store' })
+              .then(function (r) { return r.json(); })
+              .then(paint)
+              .catch(function () {});
+          }
+          setInterval(tick, 5000);
+          tick();
+        })();
+        </script>
         </body></html>
     """.trimIndent()
 

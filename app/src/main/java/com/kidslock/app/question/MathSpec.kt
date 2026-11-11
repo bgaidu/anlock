@@ -19,7 +19,10 @@ object MathSpec {
         DECIMAL_ADD_SUB,
         MIXED_THREE,
         FRACTION_ADD_SUB,
-        DECIMAL_MUL_DIV
+        DECIMAL_MUL_DIV,
+        UNIT_CONVERT,
+        NUMBER_PATTERN,
+        WORD_PROBLEM
     }
 
     enum class Format { INT, DECIMAL, FRACTION }
@@ -37,11 +40,23 @@ object MathSpec {
     val BY_GRADE: Array<Array<MathKind>> = arrayOf(
         arrayOf(MathKind.ADD_SUB_10),
         arrayOf(MathKind.ADD_SUB_20),
-        arrayOf(MathKind.MUL_TABLE, MathKind.ADD_SUB_100),
-        arrayOf(MathKind.MUL_DIV, MathKind.TWO_STEP),
-        arrayOf(MathKind.MIXED_PAREN, MathKind.TWO_DIGIT_X_ONE),
-        arrayOf(MathKind.MIXED_TWO_STEP, MathKind.DECIMAL_ADD_SUB),
-        arrayOf(MathKind.MIXED_THREE, MathKind.FRACTION_ADD_SUB, MathKind.DECIMAL_MUL_DIV)
+        arrayOf(MathKind.MUL_TABLE, MathKind.ADD_SUB_100, MathKind.UNIT_CONVERT),
+        arrayOf(
+            MathKind.MUL_DIV, MathKind.TWO_STEP, MathKind.UNIT_CONVERT,
+            MathKind.NUMBER_PATTERN, MathKind.WORD_PROBLEM
+        ),
+        arrayOf(
+            MathKind.MIXED_PAREN, MathKind.TWO_DIGIT_X_ONE,
+            MathKind.NUMBER_PATTERN, MathKind.WORD_PROBLEM
+        ),
+        arrayOf(
+            MathKind.MIXED_TWO_STEP, MathKind.DECIMAL_ADD_SUB,
+            MathKind.UNIT_CONVERT, MathKind.WORD_PROBLEM
+        ),
+        arrayOf(
+            MathKind.MIXED_THREE, MathKind.FRACTION_ADD_SUB, MathKind.DECIMAL_MUL_DIV,
+            MathKind.NUMBER_PATTERN, MathKind.WORD_PROBLEM
+        )
     )
 
     @JvmStatic
@@ -60,6 +75,9 @@ object MathSpec {
             MathKind.MIXED_THREE -> genMixedThree(random)
             MathKind.FRACTION_ADD_SUB -> genFractionAddSub(random)
             MathKind.DECIMAL_MUL_DIV -> genDecimalMulDiv(random)
+            MathKind.UNIT_CONVERT -> genUnitConvert(random)
+            MathKind.NUMBER_PATTERN -> genNumberPattern(random)
+            MathKind.WORD_PROBLEM -> genWordProblem(random)
         }
     }
 
@@ -372,6 +390,130 @@ object MathSpec {
             cands.add(ansFp - 1)
             return buildDecimal(stem, ansFp, ansDigits, pick3(cands, ansFp, true, ansDigits))
         }
+    }
+
+    /** 单位换算：米/厘米、千克/克、分钟/秒、升/毫升，答案都是整数。 */
+    private fun genUnitConvert(r: Random): MathProblem? {
+        val ans: Long
+        val stem: String
+        val factor: Long
+        when (r.nextInt(4)) {
+            0 -> {
+                val m = randInt(r, 1, 9)
+                ans = (m * 100).toLong(); factor = 100
+                stem = "$m 米 = ? 厘米"
+            }
+            1 -> {
+                val kg = randInt(r, 1, 9)
+                ans = (kg * 1000).toLong(); factor = 1000
+                stem = "$kg 千克 = ? 克"
+            }
+            2 -> {
+                val minutes = randInt(r, 1, 9)
+                ans = (minutes * 60).toLong(); factor = 60
+                stem = "$minutes 分钟 = ? 秒"
+            }
+            else -> {
+                val liters = randInt(r, 1, 9)
+                ans = (liters * 1000).toLong(); factor = 1000
+                stem = "$liters 升 = ? 毫升"
+            }
+        }
+        val cands = ArrayList<Long>()
+        cands.add(ans * 10)
+        if (ans / 10 > 0) cands.add(ans / 10)
+        cands.add(ans + factor)
+        cands.add(ans - factor)
+        cands.add(ans + 1)
+        cands.add(ans - 1)
+        cands.add(ans + 10)
+        cands.add(ans - 10)
+        return build(stem, ans, false, 0, pick3(cands, ans, false, 0))
+    }
+
+    /** 找规律：等差或等比数列，问下一个数。 */
+    private fun genNumberPattern(r: Random): MathProblem? {
+        val ans: Long
+        val stem: String
+        val cands = ArrayList<Long>()
+        if (r.nextBoolean()) {
+            val start = randInt(r, 1, 12)
+            val step = randInt(r, 2, 9)
+            val terms = LongArray(4) { (start + step * it).toLong() }
+            ans = start + step * 4L
+            stem = terms.joinToString(", ") + ", ?"
+            cands.add(ans + step)
+            cands.add(ans - step)
+            cands.add(ans + 1)
+            cands.add(ans - 1)
+            cands.add(ans + 10)
+            cands.add(ans - 10)
+        } else {
+            val start = randInt(r, 1, 5)
+            val terms = LongArray(4) { (start * (1 shl it)).toLong() }
+            ans = (start * 16L)
+            stem = terms.joinToString(", ") + ", ?"
+            cands.add(ans / 2)
+            cands.add(ans + 2)
+            cands.add(ans - 2)
+            cands.add(ans + 4)
+            cands.add(ans - 4)
+        }
+        return build(stem, ans, false, 0, pick3(cands, ans, false, 0))
+    }
+
+    /** 应用题：单价/剩余/平均分/行程/周长/装箱，全部整数答案。 */
+    private fun genWordProblem(r: Random): MathProblem? {
+        val ans: Long
+        val stem: String
+        when (r.nextInt(6)) {
+            0 -> {
+                val price = randInt(r, 2, 12)
+                val count = randInt(r, 2, 9)
+                ans = (price * count).toLong()
+                stem = "每本笔记本 $price 元，买 $count 本一共多少元？"
+            }
+            1 -> {
+                val total = randInt(r, 10, 50)
+                val eaten = randInt(r, 1, total - 1)
+                ans = (total - eaten).toLong()
+                stem = "有 $total 颗糖，吃掉了 $eaten 颗，还剩多少颗？"
+            }
+            2 -> {
+                val kids = randInt(r, 2, 6)
+                val per = randInt(r, 2, 9)
+                ans = per.toLong()
+                stem = "把 ${kids * per} 个苹果平均分给 $kids 人，每人分到多少个？"
+            }
+            3 -> {
+                val speed = randInt(r, 2, 6)
+                val hours = randInt(r, 2, 5)
+                ans = (speed * hours).toLong()
+                stem = "小明每小时走 $speed 千米，走了 $hours 小时，一共走了多少千米？"
+            }
+            4 -> {
+                val length = randInt(r, 3, 12)
+                val width = randInt(r, 3, 12)
+                ans = (2 * (length + width)).toLong()
+                stem = "一个长方形长 $length 厘米、宽 $width 厘米，周长是多少厘米？"
+            }
+            else -> {
+                val perBox = randInt(r, 6, 12)
+                val boxes = randInt(r, 2, 9)
+                ans = (perBox * boxes).toLong()
+                stem = "一箱牛奶有 $perBox 盒，$boxes 箱一共多少盒？"
+            }
+        }
+        val cands = ArrayList<Long>()
+        cands.add(ans + 1)
+        cands.add(ans - 1)
+        cands.add(ans + 2)
+        cands.add(ans - 2)
+        cands.add(ans + 10)
+        cands.add(ans - 10)
+        cands.add(ans + 100)
+        cands.add(ans - 100)
+        return build(stem, ans, false, 0, pick3(cands, ans, false, 0))
     }
 
     private fun randInt(r: Random, lo: Int, hi: Int): Int {

@@ -6,6 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
+import android.os.UserManager
 import android.util.Log
 
 /**
@@ -64,6 +65,12 @@ object KioskManager {
                 Log.w(TAG, "setLockTaskFeatures failed", e)
             }
         }
+        try {
+            // 设备所有者下禁止再新增用户/访客，堵住「切到其他用户绕过」的通道
+            d.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER)
+        } catch (e: Exception) {
+            Log.w(TAG, "DISALLOW_ADD_USER failed", e)
+        }
     }
 
     /**
@@ -79,6 +86,12 @@ object KioskManager {
             d.setKeyguardDisabled(adminComponent(context), locked)
         } catch (e: Exception) {
             Log.w(TAG, "setKeyguardDisabled failed", e)
+        }
+        try {
+            // 锁定时禁用状态栏下拉，避免从通知栏进系统设置/切网络
+            d.setStatusBarDisabled(adminComponent(context), locked)
+        } catch (e: Exception) {
+            Log.w(TAG, "setStatusBarDisabled failed", e)
         }
     }
 

@@ -35,6 +35,7 @@ class PrefManager(private val context: Context) {
         private const val KEY_PIN_LOCK_UNTIL = "pin_lock_until"
         private const val KEY_PIN_MODIFIED = "pin_modified"
         private const val KEY_QUESTION_GRADE = "question_grade"
+        private const val KEY_SUBJECT_GRADE_PREFIX = "question_grade_subject_"
         private const val KEY_QUESTION_SUBJECTS = "question_subjects"
         private const val DEFAULT_AUTO_START = true
         private const val DEFAULT_WATCH_LIMIT_MIN = 30
@@ -52,6 +53,10 @@ class PrefManager(private val context: Context) {
         private const val KEY_RECENT_ANSWERS = "recent_answers"
         private const val RECENT_ANSWERS_WINDOW = 20
         private const val KEY_WEEKLY_REPORT = "weekly_report_enabled"
+        private const val KEY_EYE_REST_ENABLED = "eye_rest_enabled"
+        private const val KEY_EYE_REST_INTERVAL_MIN = "eye_rest_interval_min"
+        private const val KEY_EYE_REST_LAST_MS = "eye_rest_last_ms"
+        private const val KEY_SETUP_WIZARD_DONE = "setup_wizard_done"
         private const val SUBJECT_SEP = ","
         private val VALID_SUBJECTS = setOf("pinyin", "math", "english", "ciyu")
         private val SUBJECT_ORDER = arrayOf("pinyin", "math", "english", "ciyu")
@@ -755,6 +760,28 @@ class PrefManager(private val context: Context) {
             prefs.edit().putInt(KEY_QUESTION_GRADE, value).apply()
         }
 
+    /** 某科目单独设置的年级（-1 表示没有单独设置）。 */
+    private fun subjectGradeRaw(subject: String): Int =
+        prefs.getInt(KEY_SUBJECT_GRADE_PREFIX + subject, -1)
+
+    fun hasSubjectGrade(subject: String): Boolean = subjectGradeRaw(subject) in 0..6
+
+    /** 出题时该科目实际使用的年级：单独设置优先，否则跟随总年级。 */
+    fun gradeFor(subject: String): Int {
+        val raw = subjectGradeRaw(subject)
+        return if (raw in 0..6) raw else grade
+    }
+
+    fun setSubjectGrade(subject: String, value: Int) {
+        if (value < 0 || value > 6) return
+        prefs.edit().putInt(KEY_SUBJECT_GRADE_PREFIX + subject, value).apply()
+    }
+
+    /** 取消单独设置，重新跟随总年级。 */
+    fun clearSubjectGrade(subject: String) {
+        prefs.edit().remove(KEY_SUBJECT_GRADE_PREFIX + subject).apply()
+    }
+
     var unlockCount: Int = DEFAULT_UNLOCK_COUNT
         get() = prefs.getInt(KEY_UNLOCK_COUNT, DEFAULT_UNLOCK_COUNT)
         set(value) {
@@ -835,6 +862,43 @@ class PrefManager(private val context: Context) {
 
     fun setWeeklyReportEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_WEEKLY_REPORT, enabled).apply()
+    }
+
+    /** 护眼提醒：每 N 分钟全屏提示看远处 20 秒（默认关闭）。 */
+    fun isEyeRestEnabled(): Boolean = prefs.getBoolean(KEY_EYE_REST_ENABLED, false)
+
+    fun setEyeRestEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_EYE_REST_ENABLED, enabled).apply()
+        if (enabled) markEyeRestShown()
+    }
+
+    fun getEyeRestIntervalMinutes(): Int =
+        prefs.getInt(KEY_EYE_REST_INTERVAL_MIN, 20).coerceIn(5, 60)
+
+    fun setEyeRestIntervalMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_EYE_REST_INTERVAL_MIN, minutes.coerceIn(5, 60)).apply()
+        markEyeRestShown()
+    }
+
+    fun eyeRestLastMs(): Long = prefs.getLong(KEY_EYE_REST_LAST_MS, 0L)
+
+    fun markEyeRestShown() {
+        prefs.edit().putLong(KEY_EYE_REST_LAST_MS, System.currentTimeMillis()).apply()
+    }
+
+    /**
+     * 首次配置向导是否已完成。
+     * 老用户升级时若已经有练习记录或当日用量，直接视为完成，避免突然弹窗打扰。
+     */
+    fun isSetupWizardDone(): Boolean {
+        if (prefs.contains(KEY_SETUP_WIZARD_DONE)) {
+            return prefs.getBoolean(KEY_SETUP_WIZARD_DONE, false)
+        }
+        return prefs.getInt(KEY_STAT_TOTAL, 0) > 0 || prefs.getLong(KEY_DAILY_USED_MS, 0) > 0
+    }
+
+    fun setSetupWizardDone(done: Boolean) {
+        prefs.edit().putBoolean(KEY_SETUP_WIZARD_DONE, done).apply()
     }
 
     fun isSubjectEnabled(subject: String): Boolean = subjects.contains(subject)

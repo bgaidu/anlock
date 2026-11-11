@@ -65,6 +65,29 @@ object ReviewStore {
         }
     }
 
+    /** 家长查看用：全部错题，按到期日从早到晚。 */
+    fun all(ctx: Context): List<Item> = synchronized(lock) {
+        load(ctx).sortedWith(compareBy({ it.dueDay }, { it.subject }, { it.id }))
+    }
+
+    fun remove(ctx: Context, key: String) {
+        synchronized(lock) {
+            val items = load(ctx)
+            items.removeAll { it.key == key }
+            save(ctx, items)
+        }
+    }
+
+    fun clear(ctx: Context) {
+        synchronized(lock) {
+            try {
+                fileFor(ctx).delete()
+            } catch (e: Exception) {
+                // 删除失败下次再试
+            }
+        }
+    }
+
     fun recordResult(ctx: Context, q: Question, correct: Boolean) {
         synchronized(lock) {
             val items = load(ctx)

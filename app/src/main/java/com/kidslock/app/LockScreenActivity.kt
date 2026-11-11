@@ -22,6 +22,12 @@ import com.kidslock.app.question.QuestionEngine
 class LockScreenActivity : AppCompatActivity() {
 
     companion object {
+        /**
+         * 仅供首次配置向导的「试锁」使用：大于 0 时进入测试模式，
+         * 不显示题目、不消耗星星，倒计时结束自动退出（锁定状态由向导负责清除）。
+         */
+        const val EXTRA_TEST_SECONDS = "extra_test_seconds"
+
         private const val STARTING_TIMEOUT_MS = 5000L
         private var foregroundInstance: LockScreenActivity? = null
 
@@ -73,6 +79,21 @@ class LockScreenActivity : AppCompatActivity() {
     private var pendingNext: Runnable? = null
     private val startedAtElapsed = SystemClock.elapsedRealtime()
 
+    /** 试锁模式剩余秒数，0 表示正常答题锁屏。 */
+    private var testRemaining = 0
+
+    private val testTick = object : Runnable {
+        override fun run() {
+            testRemaining--
+            if (testRemaining <= 0) {
+                exitTestLock()
+                return
+            }
+            tvProgress.text = "试锁测试中，剩余 ${testRemaining} 秒"
+            handler.postDelayed(this, 1000)
+        }
+    }
+
     /** 时段恢复等场景下服务会自动解锁，锁屏页轮询到后自行退出。 */
     private val unlockWatch = object : Runnable {
         override fun run() {
@@ -119,8 +140,12 @@ class LockScreenActivity : AppCompatActivity() {
         hideSystemUI()
 
         initViews()
-        loadNextQuestion()
-        showScheduleReasonIfNeeded()
+        if (intent.getIntExtra(EXTRA_TEST_SECONDS, 0) > 0) {
+            startTestLock(intent.getIntExtra(EXTRA_TEST_SECONDS, 0))
+        } else {
+            loadNextQuestion()
+            showScheduleReasonIfNeeded()
+        }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -207,6 +232,35 @@ class LockScreenActivity : AppCompatActivity() {
                 "先休息一下吧。家长可输入 PIN 临时使用。"
         tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.wrong_red))
         tvFeedback.visibility = View.VISIBLE
+    }
+
+    /**
+     * 试锁模式：只展示锁屏外观与倒计时，不出题、不记成绩，
+     * 让家长确认「锁屏是否真的盖住了桌面」。
+     */
+    private fun startTestLock(seconds: Int) {
+        testRemaining = seconds
+        layoutOptions1.visibility = View.GONE
+        layoutOptions2.visibility = View.GONE
+        layoutFill.visibility = View.GONE
+        findViewById<View>(R.id.btnParentUnlock).visibility = View.GONE
+
+        tvCharacter.text = "试锁中"
+        tvQuestionHint.text = "这是测试锁屏，不会记录成绩"
+        tvProgress.text = "试锁测试中，剩余 ${testRemaining} 秒"
+        tvFeedback.text = "如果此刻仍能回到桌面，说明悬浮窗/锁屏没有生效，请检查权限与后台限制"
+        tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        tvFeedback.visibility = View.VISIBLE
+        Diag.i("Lock", "test lock UI shown for ${seconds}s")
+        handler.postDelayed(testTick, 1000)
+    }
+
+    private fun exitTestLock() {
+        handler.removeCallbacks(testTick)
+        KioskManager.exitLockTask(this)
+        // 不在这里解锁：锁定状态由向导的定时兜底统一清除，
+        // 避免测试刚结束、向导还没反应时桌面短暂可用。
+        finish()
     }
 
     private fun loadNextQuestion() {
@@ -506,7 +560,7 @@ class LockScreenActivity : AppCompatActivity() {
         MediaPause.pause(this)
         LockOverlayManager.hideOverlay(this)
         hideSystemUI()
-        focusUnlockButton()
+        if (testRemaining == 0) focusUnlockButton()
         handler.removeCallbacks(unlockWatch)
         handler.postDelayed(unlockWatch, 5000)
 

@@ -214,9 +214,23 @@
             android:id="@+id/btnWeeklyReport"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
-            android:layout_marginBottom="@dimen/spacing_medium"
+            android:layout_marginBottom="@dimen/spacing_small"
             android:minWidth="300dp"
             android:text="@string/btn_weekly_report"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 按应用使用排行：近 7 天各应用前台时长（本机数据） -->
+        <Button
+            android:id="@+id/btnAppUsageRanking"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_app_usage_ranking"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"
@@ -574,12 +588,39 @@
 
         <!-- 题型与复习：判断题、错题加练开关 -->
         <Button
+            android:id="@+id/btnSubjectGrades"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_subject_grades"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <Button
             android:id="@+id/btnQuestionTypes"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginBottom="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_question_types"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 护眼休息：每 N 分钟全屏提示 20 秒（默认关闭） -->
+        <Button
+            android:id="@+id/btnEyeRest"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
             android:layout_marginBottom="@dimen/spacing_medium"
             android:minWidth="300dp"
-            android:text="@string/btn_question_types"
+            android:text="@string/btn_eye_rest"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"
@@ -627,6 +668,20 @@
             android:layout_marginTop="@dimen/spacing_small"
             android:minWidth="300dp"
             android:text="@string/btn_reset_stats"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
+        <!-- 错题本：查看具体错题、单条移除、一键清空 -->
+        <Button
+            android:id="@+id/btnReviewBook"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="@string/btn_review_book"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"
             android:textColor="@color/btn_text"
@@ -751,12 +806,26 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 首次配置向导：权限/电池/PIN/试锁 一站式检查 -->
+        <Button
+            android:id="@+id/btnSetupWizard"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_medium"
+            android:minWidth="300dp"
+            android:text="@string/btn_setup_wizard"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 权限检查（应用内逐项开启系统权限） -->
         <Button
             android:id="@+id/btnPermissions"
             android:layout_width="wrap_content"
             android:layout_height="@dimen/btn_height"
-            android:layout_marginTop="@dimen/spacing_medium"
+            android:layout_marginTop="@dimen/spacing_small"
             android:minWidth="300dp"
             android:textSize="@dimen/text_button"
             android:background="@drawable/btn_settings_bg"

@@ -1,10 +1,14 @@
 package com.kidslock.app
 
 import android.app.Application
+import android.os.Process
 
 class KidsLockApp : Application() {
+    private var previousCrashHandler: Thread.UncaughtExceptionHandler? = null
+
     override fun onCreate() {
         super.onCreate()
+        installCrashLogger()
         AppContextHolder.context = this
         val pref = PrefManager(this)
         if (pref.isTimerActive() || pref.isLocked()) {
@@ -12,6 +16,24 @@ class KidsLockApp : Application() {
             Diag.i("App", "process start, timer=${pref.isTimerActive()} locked=${pref.isLocked()}")
         } else {
             Diag.i("App", "process start, idle")
+        }
+    }
+
+    /** 未捕获异常先落盘再交给系统，家长能在诊断日志里看到崩溃原因。 */
+    private fun installCrashLogger() {
+        previousCrashHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            try {
+                Diag.e("Crash", "uncaught in ${thread.name}", error)
+            } catch (_: Throwable) {
+            }
+            val previous = previousCrashHandler
+            if (previous != null) {
+                previous.uncaughtException(thread, error)
+            } else {
+                Process.killProcess(Process.myPid())
+                kotlin.system.exitProcess(10)
+            }
         }
     }
 }

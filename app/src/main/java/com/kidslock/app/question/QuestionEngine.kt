@@ -14,6 +14,7 @@ class QuestionEngine private constructor(
     private val providerBySubject: Map<String, QuestionProvider>,
     private val schedule: List<String>,
     private val grade: Int,
+    private val gradeBySubject: Map<String, Int>,
     private val judgmentEnabled: Boolean,
     private val reviewBoostEnabled: Boolean,
     private val fillBlankEnabled: Boolean
@@ -50,16 +51,24 @@ class QuestionEngine private constructor(
 
             val list = ArrayList<QuestionProvider>()
             val bySubject = HashMap<String, QuestionProvider>()
+            val gradesBySubject = HashMap<String, Int>()
             val effective = LinkedHashSet<String>()
             for (s in Subject.ORDER) {
                 if (!subjects.contains(s)) continue
                 val p = providerFor(ctx, s) ?: continue
-                if (!p.isAvailable(grade)) {
-                    Log.w(TAG, "QuestionEngine: 科目不可用，跳过 $s（grade=$grade）")
+                // 单独设置过年级的科目用自己的年级；其余科目跟随总年级/自适应结果
+                val subjectGrade = if (pref.hasSubjectGrade(s) || !adaptiveOn) {
+                    pref.gradeFor(s)
+                } else {
+                    grade
+                }
+                if (!p.isAvailable(subjectGrade)) {
+                    Log.w(TAG, "QuestionEngine: 科目不可用，跳过 $s（grade=$subjectGrade）")
                     continue
                 }
                 list.add(p)
                 bySubject[s] = p
+                gradesBySubject[s] = subjectGrade
                 effective.add(s)
             }
 
@@ -68,12 +77,13 @@ class QuestionEngine private constructor(
                 val p = PinyinProvider(ctx)
                 list.add(p)
                 bySubject[Subject.PINYIN] = p
+                gradesBySubject[Subject.PINYIN] = grade
                 effective.add(Subject.PINYIN)
             }
 
             val schedule = buildSchedule(effective, total, Random())
             return QuestionEngine(
-                ctx, list, bySubject, schedule, grade,
+                ctx, list, bySubject, schedule, grade, gradesBySubject,
                 pref.isJudgmentEnabled(), pref.isReviewBoostEnabled(), pref.isFillBlankEnabled()
             )
         }
@@ -91,13 +101,12 @@ class QuestionEngine private constructor(
 
         @JvmStatic
         fun unavailableSubjects(ctx: Context, pref: PrefManager): List<String> {
-            val grade = pref.grade
             val subjects = pref.subjects
             val blocked = ArrayList<String>()
             for (s in Subject.ORDER) {
                 if (!subjects.contains(s)) continue
                 val p = providerFor(ctx, s) ?: continue
-                if (!p.isAvailable(grade)) blocked.add(s)
+                if (!p.isAvailable(pref.gradeFor(s))) blocked.add(s)
             }
             return blocked
         }
@@ -187,6 +196,9 @@ class QuestionEngine private constructor(
         ReviewStore.recordResult(context, q, correct)
     }
 
+    private fun gradeFor(subject: String?): Int =
+        if (subject == null) grade else (gradeBySubject[subject] ?: grade)
+
     fun nextQuestion(): Question {
         if (reviewQueue.isNotEmpty()) {
             return reviewQueue.removeFirst()
@@ -210,11 +222,12 @@ class QuestionEngine private constructor(
         for (attempt in 0 until MAX_ATTEMPTS) {
             val p = providerForScheduledSubject()
             val provider = p ?: providers[random.nextInt(providers.size)]
+            val subjectGrade = gradeFor(provider.subject())
             // 填空题：数学题改成自己输入答案，其余科目保持选择题
             val q = if (fillBlankEnabled && provider is MathProvider) {
-                provider.nextFill(grade, random)
+                provider.nextFill(subjectGrade, random)
             } else {
-                provider.next(grade, random)
+                provider.next(subjectGrade, random)
             } ?: continue
             if (relax || !recent.contains(q.id)) {
                 recent.offer(q.id)
@@ -233,7 +246,7 @@ class QuestionEngine private constructor(
         val subjects = providers.map { it.subject() }.filter { it != Subject.MATH }
         if (subjects.isEmpty()) return null
         val subject = subjects[random.nextInt(subjects.size)]
-        val result = BankRepository.get(context).load(subject, grade)
+        val result = BankRepository.get(context).load(subject, gradeFor(subject))
         if (result.entries.size < 4) return null
         val entry = result.entries[random.nextInt(result.entries.size)]
 
@@ -270,17 +283,17 @@ class QuestionEngine private constructor(
 
     private fun nextJudgmentFromProvider(): Question? {
         val p = providers[random.nextInt(providers.size)]
-        return p.next(grade, random)
+        return p.next(gradeFor(p.subject()), random)
     }
 
     fun nextPreviewQuestion(): Question {
         for (i in providers.indices) {
-            val p = providerForScheduledSubject()
-            val q = (p ?: providers[random.nextInt(providers.size)]).next(grade, random)
+            val p = providerForScheduledSubject() ?: providers[random.nextInt(providers.size)]
+            val q = p.next(gradeFor(p.subject()), random)
             if (q != null) return q
         }
         for (p in providers) {
-            val q = p.next(grade, random)
+            val q = p.next(gradeFor(p.subject()), random)
             if (q != null) return q
         }
         return nextQuestion()
