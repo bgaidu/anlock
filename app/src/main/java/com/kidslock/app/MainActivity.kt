@@ -1680,7 +1680,9 @@ class MainActivity : AppCompatActivity() {
         tvQuestionSubjects.text = "科目：${enabledSubjectsText()}"
         btnQuestionTypes.text = "题型与复习：判断" +
                 (if (pref.isJudgmentEnabled()) "开" else "关") +
-                " · 填空" + (if (pref.isFillBlankEnabled()) "开" else "关") +
+                // 填空题只在触屏设备提供，电视端没这个入口，状态里也不要显示
+                (if (DeviceProfile.hasTouchscreen(this))
+                    " · 填空" + (if (pref.isFillBlankEnabled()) "开" else "关") else "") +
                 " · 错题加练" + (if (pref.isReviewBoostEnabled())
                     ReviewQuota.label(pref.getReviewBoostRatio()) else "关") +
                 " · 自适应" + (if (pref.isAdaptiveDifficultyEnabled()) "开" else "关")

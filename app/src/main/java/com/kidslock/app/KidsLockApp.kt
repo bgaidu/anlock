@@ -21,6 +21,7 @@ class KidsLockApp : Application() {
             override fun onActivityDestroyed(activity: Activity) {}
         })
         AppContextHolder.context = this
+        Diag.i("Device", DeviceProfile.describe(this))
         val pref = PrefManager(this)
         if (pref.isTimerActive() || pref.isLocked() || pref.isAppLimitEnabled()) {
             Revival.schedule(this)

@@ -76,6 +76,7 @@
             android:excludeFromRecents="true"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.KidsLock.FullScreen" />
 
         <!-- Question Preview Activity (R24：预览一道题，PIN 门禁之后，不导出) -->

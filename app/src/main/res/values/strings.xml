@@ -9,8 +9,9 @@
     <!-- Lock Screen -->
     <string name="screen_locked">屏幕已锁定</string>
     <string name="what_pronounce">这个字读什么？</string>
-    <string name="fill_input_tip">点下面的数字键输入答案（分数用 /）</string>
-    <string name="fill_confirm">确认</string>
+    <string name="fill_input_hint">在这输入答案</string>
+    <string name="fill_input_tip">输入答案后按「提交」（分数用 /）</string>
+    <string name="fill_confirm">提交</string>
     <string name="parent_unlock">家长解锁</string>
     <!-- 进度提示与家长解锁之间的间隔：8 个空格 -->
     <string name="gap_spaces">"        "</string>

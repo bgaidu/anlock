@@ -2,6 +2,7 @@ package com.kidslock.app.question
 
 import android.content.Context
 import android.util.Log
+import com.kidslock.app.DeviceProfile
 import com.kidslock.app.Diag
 import com.kidslock.app.PrefManager
 import java.util.Collections
@@ -83,10 +84,15 @@ class QuestionEngine private constructor(
             }
 
             val schedule = buildSchedule(effective, total, Random())
+            // 填空题需要打字输入答案：只有触屏设备（平板/手机）提供，电视端统一走四选项选择题
+            val fillBlank = pref.isFillBlankEnabled() && DeviceProfile.hasTouchscreen(ctx)
+            if (pref.isFillBlankEnabled() && !fillBlank) {
+                Diag.i("Question", "fill blank skipped on non-touch device")
+            }
             return QuestionEngine(
                 ctx, list, bySubject, schedule, grade, gradesBySubject,
                 pref.isJudgmentEnabled(), pref.isReviewBoostEnabled(),
-                pref.getReviewBoostRatio(), pref.isFillBlankEnabled()
+                pref.getReviewBoostRatio(), fillBlank
             )
         }
 

@@ -43,7 +43,7 @@ class MathProvider(private val context: Context?) : QuestionProvider {
     fun nextFill(grade: Int, random: Random): Question? {
         val base = next(grade, random) ?: return null
         return base.copy(
-            hint = "算一算，在下面输入答案后按「确认」",
+            hint = "算一算，输入答案后按「提交」",
             fillBlank = true
         )
     }

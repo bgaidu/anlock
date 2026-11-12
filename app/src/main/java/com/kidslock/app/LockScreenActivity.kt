@@ -1,5 +1,6 @@
 package com.kidslock.app
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -9,7 +10,10 @@ import android.os.SystemClock
 import android.util.TypedValue
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -59,14 +63,13 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var layoutOptions1: View
     private lateinit var layoutOptions2: View
     private lateinit var layoutFill: View
-    private lateinit var tvFillInput: TextView
+    private lateinit var etFillAnswer: EditText
     private lateinit var tvCharacter: TextView
     private lateinit var tvQuestionHint: TextView
     private lateinit var tvProgress: TextView
     private lateinit var tvQuota: TextView
     private lateinit var tvFeedback: TextView
     private lateinit var optionButtons: Array<Button>
-    private val fillBuffer = StringBuilder()
 
     private lateinit var layoutPin: View
     private lateinit var tvPinDisplay: TextView
@@ -165,7 +168,7 @@ class LockScreenActivity : AppCompatActivity() {
         layoutOptions1 = findViewById(R.id.layoutOptions1)
         layoutOptions2 = findViewById(R.id.layoutOptions2)
         layoutFill = findViewById(R.id.layoutFill)
-        tvFillInput = findViewById(R.id.tvFillInput)
+        etFillAnswer = findViewById(R.id.etFillAnswer)
         tvCharacter = findViewById(R.id.tvCharacter)
         tvQuestionHint = findViewById(R.id.tvQuestionHint)
         tvProgress = findViewById(R.id.tvProgress)
@@ -183,7 +186,7 @@ class LockScreenActivity : AppCompatActivity() {
             optionButtons[i].setOnClickListener { onOptionSelected(idx) }
         }
 
-        initFillKeypad()
+        initFillInput()
 
         findViewById<View>(R.id.btnParentUnlock).setOnClickListener { showPinPad() }
 
@@ -212,19 +215,17 @@ class LockScreenActivity : AppCompatActivity() {
         }
     }
 
-    /** 填空题的数字键盘：0-9、小数点、分数线、退格、确认。 */
-    private fun initFillKeypad() {
-        val digitIds = intArrayOf(
-            R.id.btnKey0, R.id.btnKey1, R.id.btnKey2, R.id.btnKey3, R.id.btnKey4,
-            R.id.btnKey5, R.id.btnKey6, R.id.btnKey7, R.id.btnKey8, R.id.btnKey9
-        )
-        for (i in digitIds.indices) {
-            findViewById<View>(digitIds[i]).setOnClickListener { onFillChar(i.toString()) }
+    /** 填空题：软键盘输入 + 「提交」按钮（仅触屏设备，电视端不会走到这里）。 */
+    private fun initFillInput() {
+        findViewById<View>(R.id.btnFillSubmit).setOnClickListener { submitFill() }
+        etFillAnswer.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submitFill()
+                true
+            } else {
+                false
+            }
         }
-        findViewById<View>(R.id.btnKeyDot).setOnClickListener { onFillChar(".") }
-        findViewById<View>(R.id.btnKeySlash).setOnClickListener { onFillChar("/") }
-        findViewById<View>(R.id.btnKeyBack).setOnClickListener { onFillBack() }
-        findViewById<View>(R.id.btnKeyOk).setOnClickListener { submitFill() }
     }
 
     /** 休息时段内锁屏：直接说明原因，而不是让孩子白答一堆题。 */
@@ -293,14 +294,89 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun showChoiceMode() {
         layoutFill.visibility = View.GONE
+        etFillAnswer.setText("")
+        hideSoftInput()
+        renderOptions(currentOptions)
+    }
+
+    /** 切回选择题时收起软键盘，免得键盘挡住选项。 */
+    private fun hideSoftInput() {
+        etFillAnswer.clearFocus()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(etFillAnswer.windowToken, 0)
+    }
+
+    /**
+     * 按选项数量渲染选项按钮。
+     *
+     * 判断题只有「对 / 错」两个选项，必须把第二行隐藏、多余的按钮清空并禁用，
+     * 否则会残留上一道题的文案，而且还能被点中记成答错。
+     */
+    private fun renderOptions(options: List<String>) {
         layoutOptions1.visibility = View.VISIBLE
-        layoutOptions2.visibility = View.VISIBLE
-        findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnOption3
+        layoutOptions2.visibility = if (options.size > 2) View.VISIBLE else View.GONE
         for (i in optionButtons.indices) {
-            if (i < currentOptions.size) {
-                optionButtons[i].text = currentOptions[i]
-                optionButtons[i].setBackgroundResource(R.drawable.btn_option_bg)
-                optionButtons[i].isEnabled = true
+            val text = options.getOrNull(i)
+            optionButtons[i].text = text ?: ""
+            optionButtons[i].setBackgroundResource(R.drawable.btn_option_bg)
+            optionButtons[i].isEnabled = text != null
+            optionButtons[i].visibility = if (text != null) View.VISIBLE else View.GONE
+        }
+        bindOptionFocus(options.size)
+    }
+
+    /** 行数变化后重新绑定四向焦点，避免按「下」落到被隐藏的按钮上。 */
+    private fun bindOptionFocus(count: Int) {
+        val parentUnlock = findViewById<View>(R.id.btnParentUnlock)
+        when {
+            count >= 4 -> {
+                optionButtons[0].nextFocusLeftId = R.id.btnOption3
+                optionButtons[0].nextFocusRightId = R.id.btnOption2
+                optionButtons[0].nextFocusUpId = R.id.btnOption1
+                optionButtons[0].nextFocusDownId = R.id.btnOption3
+                optionButtons[1].nextFocusLeftId = R.id.btnOption1
+                optionButtons[1].nextFocusRightId = R.id.btnOption4
+                optionButtons[1].nextFocusUpId = R.id.btnOption2
+                optionButtons[1].nextFocusDownId = R.id.btnOption4
+                optionButtons[2].nextFocusLeftId = R.id.btnOption4
+                optionButtons[2].nextFocusRightId = R.id.btnOption1
+                optionButtons[2].nextFocusUpId = R.id.btnOption1
+                optionButtons[2].nextFocusDownId = R.id.btnParentUnlock
+                optionButtons[3].nextFocusLeftId = R.id.btnOption3
+                optionButtons[3].nextFocusRightId = R.id.btnOption2
+                optionButtons[3].nextFocusUpId = R.id.btnOption2
+                optionButtons[3].nextFocusDownId = R.id.btnParentUnlock
+                parentUnlock.nextFocusUpId = R.id.btnOption3
+                parentUnlock.nextFocusDownId = R.id.btnOption1
+            }
+            count == 3 -> {
+                optionButtons[0].nextFocusLeftId = R.id.btnOption3
+                optionButtons[0].nextFocusRightId = R.id.btnOption2
+                optionButtons[0].nextFocusUpId = R.id.btnOption1
+                optionButtons[0].nextFocusDownId = R.id.btnOption3
+                optionButtons[1].nextFocusLeftId = R.id.btnOption1
+                optionButtons[1].nextFocusRightId = R.id.btnOption3
+                optionButtons[1].nextFocusUpId = R.id.btnOption2
+                optionButtons[1].nextFocusDownId = R.id.btnOption3
+                optionButtons[2].nextFocusLeftId = R.id.btnOption2
+                optionButtons[2].nextFocusRightId = R.id.btnOption1
+                optionButtons[2].nextFocusUpId = R.id.btnOption1
+                optionButtons[2].nextFocusDownId = R.id.btnParentUnlock
+                parentUnlock.nextFocusUpId = R.id.btnOption3
+                parentUnlock.nextFocusDownId = R.id.btnOption1
+            }
+            else -> {
+                // 两个选项：左右互指，向下直接到「家长解锁」
+                optionButtons[0].nextFocusLeftId = R.id.btnOption2
+                optionButtons[0].nextFocusRightId = R.id.btnOption2
+                optionButtons[0].nextFocusUpId = R.id.btnOption1
+                optionButtons[0].nextFocusDownId = R.id.btnParentUnlock
+                optionButtons[1].nextFocusLeftId = R.id.btnOption1
+                optionButtons[1].nextFocusRightId = R.id.btnOption1
+                optionButtons[1].nextFocusUpId = R.id.btnOption2
+                optionButtons[1].nextFocusDownId = R.id.btnParentUnlock
+                parentUnlock.nextFocusUpId = R.id.btnOption1
+                parentUnlock.nextFocusDownId = R.id.btnOption1
             }
         }
     }
@@ -309,44 +385,28 @@ class LockScreenActivity : AppCompatActivity() {
         layoutOptions1.visibility = View.GONE
         layoutOptions2.visibility = View.GONE
         layoutFill.visibility = View.VISIBLE
-        findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnKeyOk
-        fillBuffer.setLength(0)
-        updateFillDisplay()
-        findViewById<View>(R.id.btnKey7).post { findViewById<View>(R.id.btnKey7).requestFocus() }
-    }
-
-    private fun updateFillDisplay() {
-        tvFillInput.text = if (fillBuffer.isEmpty()) "—" else fillBuffer.toString()
-    }
-
-    private fun onFillChar(text: String) {
-        if (answering || unlocking) return
-        if (fillBuffer.length >= 8) return
-        // 小数点和分数线各只允许一个，避免出现 "1.2.3"
-        if (text == "." && fillBuffer.contains('.')) return
-        if (text == "/" && fillBuffer.contains('/')) return
-        fillBuffer.append(text)
-        updateFillDisplay()
-    }
-
-    private fun onFillBack() {
-        if (answering || unlocking) return
-        if (fillBuffer.isNotEmpty()) {
-            fillBuffer.setLength(fillBuffer.length - 1)
-            updateFillDisplay()
-        }
+        etFillAnswer.setText("")
+        findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnFillSubmit
+        etFillAnswer.post { etFillAnswer.requestFocus() }
     }
 
     private fun submitFill() {
-        if (answering || unlocking || fillBuffer.isEmpty()) return
+        if (answering || unlocking) return
+        val input = etFillAnswer.text?.toString()?.trim().orEmpty()
+        if (input.isEmpty()) {
+            showFeedback("先输入答案，再按「提交」", R.color.text_secondary)
+            return
+        }
         answering = true
         val expected = currentOptions.getOrNull(currentQuestion.correctIndex) ?: ""
-        val correct = AnswerMatcher.matches(fillBuffer.toString(), expected)
+        val correct = AnswerMatcher.matches(input, expected)
         applyAnswer(correct)
     }
 
     private fun onOptionSelected(index: Int) {
         if (unlocking) return
+        // 判断题只有两个选项，隐藏的按钮万一收到点击也不能判错
+        if (index >= currentOptions.size) return
         if (answering) {
             pendingNext?.let { handler.removeCallbacks(it) }
             loadNextQuestion()
@@ -355,18 +415,22 @@ class LockScreenActivity : AppCompatActivity() {
         answering = true
 
         val correct = index == currentQuestion.correctIndex
-        if (correct) {
-            optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
-        } else {
-            optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
-            for (i in currentOptions.indices) {
-                if (i == currentQuestion.correctIndex) {
-                    optionButtons[i].setBackgroundResource(R.drawable.btn_option_correct)
-                    break
-                }
-            }
-        }
+        revealAnswer(index)
         applyAnswer(correct)
+    }
+
+    /** 判分后标出对/错：答错时顺带点亮正确答案。 */
+    private fun revealAnswer(index: Int) {
+        if (index >= optionButtons.size) return
+        if (index == currentQuestion.correctIndex) {
+            optionButtons[index].setBackgroundResource(R.drawable.btn_option_correct)
+            return
+        }
+        optionButtons[index].setBackgroundResource(R.drawable.btn_option_wrong)
+        val correctIndex = currentQuestion.correctIndex
+        if (correctIndex in optionButtons.indices) {
+            optionButtons[correctIndex].setBackgroundResource(R.drawable.btn_option_correct)
+        }
     }
 
     /** 选择题 / 填空题共用的判分与奖励逻辑。 */
@@ -508,7 +572,7 @@ class LockScreenActivity : AppCompatActivity() {
      */
     private fun focusUnlockButton() {
         val target = if (::currentQuestion.isInitialized && currentQuestion.fillBlank) {
-            R.id.btnKey7
+            R.id.etFillAnswer
         } else {
             R.id.btnOption1
         }
