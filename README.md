@@ -308,11 +308,12 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - **答错扣星**：每题答错扣 1 颗星，最低扣到 0；`RewardStore.removeStars()` 返回实际扣除数量，星星已为 0 时提示「星星已扣完」，不会出现负数。
 - **进度与提示**：底部进度改为「已答对 X 题，还剩 Y 题即可解锁」，答错时 Y 保持不变；答错反馈明确显示正确答案、扣星结果与「换一道新题继续」。
 - **纯逻辑与单测**：新增 `AnswerProgress`（答对累计、答错保持不变、解锁判定）与 5 项单测；新增 `RewardStoreTest` 3 项，覆盖加星、扣星下限与非正数扣星。
+- **真机验证（荣耀平板 GDI-W09 / Android 14，Release 包）**：锁屏答对 2 题后故意答错，底部仍是「已答对 2 题，还剩 13 题即可解锁」，目标保持 15 题，星星 9→8，并立即换一道新题；继续累计答对到设定题数后，锁屏自动关闭并回到桌面。
 
 ### 优化（1.0.1.26）
 
 - **补齐通知刷新链路**：1.0.1.25 把正文改成分钟粒度并加了去重，但真机实测仍约每 31 秒刷新一次。原因是无障碍服务每 30 秒巡检时都会 `startService`，而 `onStartCommand` 里的 `startForeground` 会绕过去重直接重新提交通知。现在 `RecoveryAccessibilityService.startServiceSafely()` 在 `LockService.runningInstance != null` 时直接返回，`Revival.ensureRunning()` 也只在服务确实不在时才拉起，通知刷新重新回到「分钟文案变化才更新」。
-- **实测结果**：见下文真机验证（1.0.1.26 复测后补充）。
+- **实测结果（1.0.1.27，荣耀平板 GDI-W09 / Android 14）**：连续采样通知 21 次（约 3.5 分钟），`dumpsys notification` 中的 `when` 只在文案跨分钟时变化（13→12→11→10→9 分钟），相邻两次刷新间隔 52–67 秒，没有再出现 30 秒一轮的巡检刷新；同期日志中 `HwNotificationEntryObserver: reportNotification failed, more than 2000` 仅出现 1 次（服务重启时），未再持续刷屏。
 
 ### 优化（1.0.1.25）
 
