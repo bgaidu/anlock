@@ -125,6 +125,7 @@ object AppLimitDialogs {
             .setNeutralButton(if (enabled) "关闭应用限额" else "开启应用限额") { _, _ ->
                 val next = !enabled
                 pref.setAppLimitEnabled(next)
+                AuditLog.record(activity, "设置", if (next) "开启应用限额" else "关闭应用限额")
                 if (next) startGuardService(activity)
                 onChanged()
                 if (next && !PermissionStatus.usageAccess(activity)) {
@@ -201,6 +202,7 @@ object AppLimitDialogs {
                             return@setItems
                         }
                         pref.addAppLimitBonusMinutes(packageName, 10)
+                        AuditLog.record(activity, "设置", "应用加时", "「$label」+10 分钟")
                         toast(activity, "已为「$label」加时 10 分钟")
                         onChanged()
                         showEditor(activity, pref, packageName, onChanged)
@@ -208,12 +210,14 @@ object AppLimitDialogs {
                     3 -> {
                         val offset = pref.getAppLimitUsageOffsetMs(packageName) + used
                         pref.setAppLimitUsageOffsetMs(packageName, offset)
+                        AuditLog.record(activity, "设置", "重置应用用量", "「$label」")
                         toast(activity, "已重置「$label」今日用量")
                         onChanged()
                         showEditor(activity, pref, packageName, onChanged)
                     }
                     else -> {
                         pref.clearAppLimit(packageName)
+                        AuditLog.record(activity, "设置", "取消应用限额", "「$label」")
                         toast(activity, "已取消「$label」的限额")
                         onChanged()
                     }
@@ -319,8 +323,9 @@ object AppLimitDialogs {
         pref.setAppLimit(packageName, weekday, weekendMinutes)
         val label = appLabel(activity, packageName)
         val scope = if (weekend) "周末" else "平日"
-        toast(activity, "「$label」${scope}限额：" + if (weekend && value < 0)
-            "跟随平日" else AppLimitPolicy.label(value))
+        val valueLabel = if (weekend && value < 0) "跟随平日" else AppLimitPolicy.label(value)
+        AuditLog.record(activity, "设置", "设置应用限额", "「$label」$scope $valueLabel")
+        toast(activity, "「$label」${scope}限额：" + valueLabel)
     }
 
     // ---- 应用列表 ----

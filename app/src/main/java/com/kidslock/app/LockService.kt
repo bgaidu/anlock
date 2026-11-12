@@ -603,12 +603,23 @@ class LockService : Service() {
             this, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // 快捷加时：仍然先进设置页过 PIN，验证通过后才弹加时选项，通知本身不能绕过门禁
+        val bonusIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_PARENT_BONUS, true)
+        }
+        val bonusPendingIntent = PendingIntent.getActivity(
+            this, 2, bonusIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("儿童锁屏运行中")
             .setContentText(contentText)
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_edit, "打开设置", pendingIntent)
+            .addAction(android.R.drawable.ic_input_add, "家长加时", bonusPendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }

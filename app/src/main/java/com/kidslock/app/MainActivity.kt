@@ -2,6 +2,7 @@ package com.kidslock.app
 
 import android.Manifest
 import android.app.AlertDialog
+import android.app.TimePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -57,6 +58,9 @@ class MainActivity : AppCompatActivity() {
 
         /** 应用限额拦截层点「家长加时」时带上包名，PIN 验证后直接打开该应用的限额编辑。 */
         const val EXTRA_APP_LIMIT_PACKAGE = "app_limit_package"
+
+        /** 通知栏「家长加时」：进入设置页，PIN 验证后弹出加时选项。 */
+        const val EXTRA_PARENT_BONUS = "parent_bonus"
         private val IMPORTABLE_SUBJECTS = arrayOf(Subject.PINYIN, Subject.ENGLISH, Subject.CITU)
 
         /** 设置页是否在前台：LockService 用它决定是否显示剩余时间角标 */
@@ -104,6 +108,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnHealth: Button
     private lateinit var btnSetupWizard: Button
     private lateinit var btnDiag: Button
+    private lateinit var btnAudit: Button
     private var permStatusDirty = true
     private var permMissingCount = 0
     private lateinit var tvQuestionGrade: TextView
@@ -126,6 +131,7 @@ class MainActivity : AppCompatActivity() {
     private var gateVerified = false
     private var pendingWeeklyReport = false
     private var pendingAppLimitPackage: String? = null
+    private var pendingParentBonus = false
     private var wizardAutoShown = false
 
     private val updateRunnable = object : Runnable {
@@ -179,6 +185,7 @@ class MainActivity : AppCompatActivity() {
         WeeklyReportAlarm.schedule(this)
         handleWeeklyReportIntent(intent)
         handleAppLimitIntent(intent)
+        handleParentBonusIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -186,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         setIntent(intent)
         handleWeeklyReportIntent(intent)
         handleAppLimitIntent(intent)
+        handleParentBonusIntent(intent)
     }
 
     /**
@@ -201,6 +209,39 @@ class MainActivity : AppCompatActivity() {
             return
         }
         window.decorView.post { AppLimitDialogs.showEditor(this, pref, pkg) { updateStatus() } }
+    }
+
+    /**
+     * 通知栏「家长加时」：和设置页一样先过 PIN，避免孩子点通知就给自己加时。
+     */
+    private fun handleParentBonusIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_PARENT_BONUS, false) != true) return
+        intent.removeExtra(EXTRA_PARENT_BONUS)
+        if (!gateVerified) {
+            pendingParentBonus = true
+            toast("输入家长 PIN 后可加时")
+            return
+        }
+        window.decorView.post { showParentBonusDialog() }
+    }
+
+    private fun showParentBonusDialog() {
+        val options = arrayOf("加时 10 分钟", "加时 15 分钟", "加时 30 分钟", "加时 60 分钟")
+        val values = intArrayOf(10, 15, 30, 60)
+        AlertDialog.Builder(this)
+            .setTitle("家长加时")
+            .setItems(options) { _, which ->
+                val minutes = values[which]
+                pref.addBonusMinutes(minutes)
+                AuditLog.record(this, "通知", "家长加时", "$minutes 分钟")
+                updateStatus()
+                toast(
+                    if (pref.isTimerActive()) "本轮剩余已延长 $minutes 分钟"
+                    else "已加 $minutes 分钟，下次解锁时生效"
+                )
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     /**
@@ -320,6 +361,8 @@ class MainActivity : AppCompatActivity() {
         tvUnlockCount = findViewById(R.id.tvUnlockCount)
         btnGuardStatus = findViewById(R.id.btnGuardStatus)
         btnDiag = findViewById(R.id.btnDiag)
+        btnAudit = findViewById(R.id.btnAudit)
+        btnAudit.setOnClickListener { showAuditLogDialog() }
         tvQuestionGrade = findViewById(R.id.tvQuestionGrade)
         tvQuestionSubjects = findViewById(R.id.tvQuestionSubjects)
         tvSubjectWarning = findViewById(R.id.tvSubjectWarning)
@@ -450,6 +493,10 @@ class MainActivity : AppCompatActivity() {
             pendingAppLimitPackage?.let { pkg ->
                 pendingAppLimitPackage = null
                 handler.post { AppLimitDialogs.showEditor(this, pref, pkg) { updateStatus() } }
+            }
+            if (pendingParentBonus) {
+                pendingParentBonus = false
+                handler.post { showParentBonusDialog() }
             }
             if (pref.shouldForcePinChange()) {
                 promptPinChange(true)
@@ -631,6 +678,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 if (pref.setParentPin(pin)) {
                     pref.resetPinFailures()
+                    AuditLog.record(this, "设置", "修改家长 PIN", if (force) "首次强制修改" else "家长主动修改")
                     toast("PIN码已设置")
                     updateStatus()
                 } else {
@@ -678,6 +726,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 if (pref.setParentPin(pin)) {
                     pref.resetPinFailures()
+                    AuditLog.record(this, "设置", "修改家长 PIN", "家长主动修改")
                     toast("PIN码已设置")
                 } else {
                     toast("PIN码设置失败，请重试")
@@ -1284,26 +1333,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 使用系统时间选择器，避免在电视遥控器上手动输入 HH:mm 出错。 */
     private fun promptTime(title: String, initialMinutes: Int, onPicked: (Int) -> Unit) {
-        val input = EditText(this).apply {
-            setText(String.format(java.util.Locale.US, "%02d:%02d", initialMinutes / 60, initialMinutes % 60))
-            inputType = InputType.TYPE_CLASS_DATETIME
-            setSelection(text.length)
-            setPadding(32, 24, 32, 24)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(input)
-            .setPositiveButton("确定") { _, _ ->
-                val minutes = parseTimeToMinutes(input.text.toString())
-                if (minutes == null) {
-                    toast("时间格式不对，请用 HH:mm，例如 08:30")
-                } else {
-                    onPicked(minutes)
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        val dialog = TimePickerDialog(
+            this,
+            { _, hour, minute -> onPicked(hour * 60 + minute) },
+            initialMinutes / 60,
+            initialMinutes % 60,
+            true
+        )
+        dialog.setTitle(title)
+        dialog.show()
     }
 
     private fun parseTimeToMinutes(text: String): Int? {
@@ -1392,11 +1432,19 @@ class MainActivity : AppCompatActivity() {
             setPadding(32, 24, 32, 24)
         }
         val scroll = ScrollView(this).apply { addView(textView) }
+        val audit = AuditLog.read(this, 200)
+        val shareContent = buildString {
+            append(content)
+            if (audit.isNotEmpty()) {
+                append("\n\n===== 家长操作记录（最近 ").append(audit.size).append(" 条） =====\n")
+                append(audit.joinToString("\n"))
+            }
+        }
         val dialog = AlertDialog.Builder(this)
             .setTitle("诊断日志（最近 300 行）")
             .setView(scroll)
             .setPositiveButton("分享日志") { _, _ ->
-                shareText(content, "儿童锁屏诊断日志", "分享诊断日志")
+                shareText(shareContent, "儿童锁屏诊断日志", "分享诊断日志")
             }
             .setNeutralButton("更多") { _, _ ->
                 AlertDialog.Builder(this)
@@ -1427,16 +1475,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun shareText(text: String, subject: String, chooserTitle: String) {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, text)
+        ShareUtil.shareText(this, text, subject, chooserTitle)
+    }
+
+    private fun showAuditLogDialog() {
+        val lines = AuditLog.read(this, 200)
+        val content = if (lines.isEmpty())
+            "暂无家长操作记录。\n\n家长加时、PIN 放行、修改额度、局域网操作等都会记录在这里。\n日志文件：${AuditLog.path(this)}"
+        else
+            lines.asReversed().joinToString("\n")
+        val textView = TextView(this).apply {
+            text = content
+            textSize = 12f
+            setTextIsSelectable(true)
+            setPadding(32, 24, 32, 24)
         }
-        try {
-            startActivity(Intent.createChooser(intent, chooserTitle))
-        } catch (e: ActivityNotFoundException) {
-            toast("没有可用的分享应用")
+        val scroll = ScrollView(this).apply { addView(textView) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("家长操作记录（最近 200 条）")
+            .setView(scroll)
+            .setPositiveButton("分享记录") { _, _ ->
+                shareText(content, "儿童锁屏家长操作记录", "分享家长操作记录")
+            }
+            .setNeutralButton("清空") { _, _ ->
+                AlertDialog.Builder(this)
+                    .setTitle("清空家长操作记录？")
+                    .setMessage("清空后无法恢复，诊断日志不受影响。")
+                    .setPositiveButton("清空") { _, _ ->
+                        AuditLog.clear(this)
+                        toast("家长操作记录已清空")
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            .setNegativeButton("关闭", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.window?.setLayout(
+                (resources.displayMetrics.widthPixels * 0.85f).toInt(),
+                (resources.displayMetrics.heightPixels * 0.70f).toInt()
+            )
         }
+        dialog.show()
     }
 
     private fun updateStatus() {

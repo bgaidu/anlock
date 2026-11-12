@@ -74,6 +74,12 @@ object DailyLimitDialog {
         if (weekend) pref.setWeekendDailyLimitMinutes(minutes) else pref.setDailyLimitMinutes(minutes)
         onChange()
         val where = if (weekend) "周末" else "平日"
+        val valueLabel = when {
+            minutes < 0 -> "跟随平日"
+            minutes == 0 -> "不限"
+            else -> "$minutes 分钟"
+        }
+        AuditLog.record(activity, "设置", "修改每日额度", "$where $valueLabel")
         Toast.makeText(
             activity,
             when {

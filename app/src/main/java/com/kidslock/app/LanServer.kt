@@ -61,6 +61,7 @@ object LanServer {
             actionLogs.add(0, ActionLog(System.currentTimeMillis(), ip, command, result))
             while (actionLogs.size > MAX_LOGS) actionLogs.removeAt(actionLogs.size - 1)
         }
+        appContext?.let { AuditLog.record(it, "局域网", command, "$result（来自 $ip）") }
     }
 
     fun isRunning(): Boolean = acceptThread?.isAlive == true

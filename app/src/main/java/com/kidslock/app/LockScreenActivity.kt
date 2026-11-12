@@ -63,6 +63,7 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var tvCharacter: TextView
     private lateinit var tvQuestionHint: TextView
     private lateinit var tvProgress: TextView
+    private lateinit var tvQuota: TextView
     private lateinit var tvFeedback: TextView
     private lateinit var optionButtons: Array<Button>
     private val fillBuffer = StringBuilder()
@@ -168,6 +169,7 @@ class LockScreenActivity : AppCompatActivity() {
         tvCharacter = findViewById(R.id.tvCharacter)
         tvQuestionHint = findViewById(R.id.tvQuestionHint)
         tvProgress = findViewById(R.id.tvProgress)
+        tvQuota = findViewById(R.id.tvQuota)
         tvFeedback = findViewById(R.id.tvFeedback)
 
         optionButtons = arrayOf(
@@ -248,6 +250,7 @@ class LockScreenActivity : AppCompatActivity() {
         tvCharacter.text = "试锁中"
         tvQuestionHint.text = "这是测试锁屏，不会记录成绩"
         tvProgress.text = "试锁测试中，剩余 ${testRemaining} 秒"
+        tvQuota.visibility = View.GONE
         tvFeedback.text = "如果此刻仍能回到桌面，说明悬浮窗/锁屏没有生效，请检查权限与后台限制"
         tvFeedback.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         tvFeedback.visibility = View.VISIBLE
@@ -428,6 +431,23 @@ class LockScreenActivity : AppCompatActivity() {
         } else {
             String.format("已答对 %d 题，还剩 %d 题即可解锁", correctCount, remaining) + starText
         }
+        tvQuota.text = dailyQuotaText()
+        tvQuota.visibility = View.VISIBLE
+    }
+
+    /** 锁屏底部展示今日额度，让孩子知道「还有多久」而不是盲目答题。 */
+    private fun dailyQuotaText(): String {
+        if (pref.isDailyBypassActive()) return "今日已由家长临时放行，不占额度"
+        val limit = pref.getDailyLimitMinutes()
+        if (limit <= 0) return "今日不限时"
+        val remaining = pref.getDailyRemainingMs()
+        if (remaining <= 0) return "今日额度已用完，明天再来吧"
+        val minutes = ((remaining + 59_999) / 60_000).coerceAtLeast(1)
+        return if (minutes < 60) {
+            "今日剩余 $minutes 分钟"
+        } else {
+            "今日剩余 ${minutes / 60} 小时 ${minutes % 60} 分钟"
+        }
     }
 
     private fun unlock(byParent: Boolean = false) {
@@ -436,6 +456,12 @@ class LockScreenActivity : AppCompatActivity() {
             pref.grantDailyBypass(pref.getWatchLimitMinutes())
             // 家长也要能在休息时段临时使用（覆盖本次观看时长）
             pref.grantScheduleBypass(pref.getWatchLimitMinutes() * 60_000L)
+            AuditLog.record(
+                this,
+                "锁屏",
+                "家长 PIN 放行",
+                "本次 ${pref.getWatchLimitMinutes()} 分钟"
+            )
         } else if (!pref.isWithinSchedule()) {
             // 休息时段不允许用答题解锁，只能家长 PIN 放行
             tvFeedback.text = "现在是休息时段（${pref.scheduleWindowLabel(pref.scheduleDayIndex())}），" +

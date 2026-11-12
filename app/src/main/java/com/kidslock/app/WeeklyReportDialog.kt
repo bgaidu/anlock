@@ -62,13 +62,21 @@ object WeeklyReportDialog {
             addView(chart)
             addView(summary)
         }
+        val shareText = buildString {
+            append("儿童锁屏 · 近 7 天报告\n")
+            append("————————————\n")
+            append(summaryText)
+        }
         AlertDialog.Builder(activity)
             .setTitle("近 7 天报告")
             .setView(container)
-            .setPositiveButton("关闭", null)
+            .setPositiveButton("分享报告") { _, _ ->
+                ShareUtil.shareText(activity, shareText, "儿童锁屏近 7 天报告", "分享周报")
+            }
             .setNeutralButton(
                 if (pref.isWeeklyReportEnabled()) "每周提醒：已开启" else "每周提醒：已关闭"
             ) { _, _ -> toggle(activity, pref, onChange) }
+            .setNegativeButton("关闭", null)
             .show()
     }
 

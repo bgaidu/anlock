@@ -883,6 +883,20 @@
             android:focusable="true"
             android:clickable="true" />
 
+        <!-- 家长操作记录：加时/放行/改设置等持久化审计（只读最近 200 条） -->
+        <Button
+            android:id="@+id/btnAudit"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="家长操作记录"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <!-- 守护服务（无障碍）状态：未开启时点击跳转系统无障碍设置 -->
         <Button
             android:id="@+id/btnGuardStatus"
