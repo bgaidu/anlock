@@ -2,6 +2,7 @@ package com.kidslock.app.prefs
 
 import android.content.SharedPreferences
 import com.kidslock.app.prefs.PrefKeys.DEFAULT_STUDY_GOAL_QUESTIONS
+import com.kidslock.app.prefs.PrefKeys.REVIEW_STAT_PREFIX
 import com.kidslock.app.prefs.PrefKeys.STUDY_BEST_STREAK
 import com.kidslock.app.prefs.PrefKeys.STUDY_GOAL_ENABLED
 import com.kidslock.app.prefs.PrefKeys.STUDY_GOAL_MET_PREFIX
@@ -39,16 +40,25 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
     private fun dateKey(timeMillis: Long): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(timeMillis))
 
-    private fun statKey(date: String, subject: String, field: String) =
-        "$STUDY_STAT_PREFIX${date}_${subject}_$field"
+    private fun statKey(prefix: String, date: String, subject: String, field: String) =
+        "$prefix${date}_${subject}_$field"
 
     private fun goalMetKey(date: String) = "$STUDY_GOAL_MET_PREFIX$date"
 
     override fun recordStudyAnswer(subject: String, correct: Boolean) {
+        recordAnswer(STUDY_STAT_PREFIX, subject, correct)
+        maybeMarkGoalMet()
+    }
+
+    override fun recordReviewAnswer(subject: String, correct: Boolean) {
+        recordAnswer(REVIEW_STAT_PREFIX, subject, correct)
+    }
+
+    private fun recordAnswer(prefix: String, subject: String, correct: Boolean) {
         if (subject.isBlank()) return
         val today = dateKey()
-        val totalKey = statKey(today, subject, "total")
-        val correctKey = statKey(today, subject, "correct")
+        val totalKey = statKey(prefix, today, subject, "total")
+        val correctKey = statKey(prefix, today, subject, "correct")
         val editor = prefs.edit()
             .putInt(totalKey, prefs.getInt(totalKey, 0) + 1)
         if (correct) {
@@ -59,10 +69,42 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
             pruneOldKeys(editor)
         }
         editor.apply()
-        maybeMarkGoalMet()
     }
 
     override fun getStudyStats(days: Int): StudyStatsSummary {
+        val agg = aggregate(STUDY_STAT_PREFIX, days)
+        return StudyStatsSummary(
+            total = agg.total,
+            correct = agg.correct,
+            bySubject = agg.bySubject,
+            todayTotal = agg.todayTotal,
+            goalEnabled = isStudyGoalEnabled(),
+            goalQuestions = getStudyGoalQuestions(),
+            todayGoalMet = isTodayGoalMet(),
+            streakDays = getStudyStreakDays(),
+            bestStreakDays = getBestStudyStreak()
+        )
+    }
+
+    override fun getReviewStats(days: Int): ReviewStatsSummary {
+        val agg = aggregate(REVIEW_STAT_PREFIX, days)
+        return ReviewStatsSummary(
+            total = agg.total,
+            correct = agg.correct,
+            bySubject = agg.bySubject,
+            todayTotal = agg.todayTotal
+        )
+    }
+
+    private class Aggregate(
+        val total: Int,
+        val correct: Int,
+        val bySubject: List<SubjectStudyStat>,
+        val todayTotal: Int
+    )
+
+    /** 按「前缀 + 近 N 天」聚合，普通答题与错题复习共用一套口径。 */
+    private fun aggregate(prefix: String, days: Int): Aggregate {
         val safeDays = days.coerceIn(1, KEEP_DAYS)
         val dates = LinkedHashSet<String>()
         val calendar = Calendar.getInstance()
@@ -77,8 +119,8 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
         var correct = 0
         var todayTotal = 0
         for ((key, value) in prefs.all) {
-            if (!key.startsWith(STUDY_STAT_PREFIX)) continue
-            val rest = key.removePrefix(STUDY_STAT_PREFIX)
+            if (!key.startsWith(prefix)) continue
+            val rest = key.removePrefix(prefix)
             if (rest.length < 12 || rest[10] != '_') continue
             val date = rest.substring(0, 10)
             if (date !in dates) continue
@@ -101,17 +143,7 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
         val stats = bySubject.map { (subject, pair) ->
             SubjectStudyStat(subject, pair[0], pair[1])
         }
-        return StudyStatsSummary(
-            total = total,
-            correct = correct,
-            bySubject = stats,
-            todayTotal = todayTotal,
-            goalEnabled = isStudyGoalEnabled(),
-            goalQuestions = getStudyGoalQuestions(),
-            todayGoalMet = isTodayGoalMet(),
-            streakDays = getStudyStreakDays(),
-            bestStreakDays = getBestStudyStreak()
-        )
+        return Aggregate(total, correct, stats, todayTotal)
     }
 
     override fun getTodayStudyTotal(): Int {
@@ -163,7 +195,10 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
     override fun resetStudyStats() {
         val editor = prefs.edit()
         for (key in prefs.all.keys) {
-            if (key.startsWith(STUDY_STAT_PREFIX) || key.startsWith(STUDY_GOAL_MET_PREFIX)) {
+            if (key.startsWith(STUDY_STAT_PREFIX) ||
+                key.startsWith(REVIEW_STAT_PREFIX) ||
+                key.startsWith(STUDY_GOAL_MET_PREFIX)
+            ) {
                 editor.remove(key)
             }
         }
@@ -191,6 +226,9 @@ class StudyStatsStore(private val prefs: SharedPreferences) : StudyStatsSettings
         for (key in prefs.all.keys.toList()) {
             if (key.startsWith(STUDY_STAT_PREFIX)) {
                 val date = key.removePrefix(STUDY_STAT_PREFIX).take(10)
+                if (date.length == 10 && date < cutoff) editor.remove(key)
+            } else if (key.startsWith(REVIEW_STAT_PREFIX)) {
+                val date = key.removePrefix(REVIEW_STAT_PREFIX).take(10)
                 if (date.length == 10 && date < cutoff) editor.remove(key)
             } else if (key.startsWith(STUDY_GOAL_MET_PREFIX)) {
                 val date = key.removePrefix(STUDY_GOAL_MET_PREFIX).take(10)

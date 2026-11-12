@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.view.ViewGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import com.kidslock.app.prefs.ReviewStatsSummary
 import com.kidslock.app.prefs.StudyStatsPolicy
 import com.kidslock.app.prefs.StudyStatsSummary
 import com.kidslock.app.question.Subject
@@ -17,7 +18,8 @@ object StudyStatsDialog {
 
     fun show(activity: Activity, pref: PrefManager, onChange: () -> Unit) {
         val summary = pref.getStudyStats(7)
-        val content = buildContent(summary)
+        val review = pref.getReviewStats(7)
+        val content = buildContent(summary, review)
         val textView = TextView(activity).apply {
             text = content
             textSize = 14f
@@ -49,7 +51,7 @@ object StudyStatsDialog {
             .show()
     }
 
-    private fun buildContent(summary: StudyStatsSummary): String = buildString {
+    private fun buildContent(summary: StudyStatsSummary, review: ReviewStatsSummary): String = buildString {
         if (summary.total <= 0) {
             append("近 7 天还没有答题记录。完成锁屏答题后，这里会按科目统计。\n\n")
         } else {
@@ -86,10 +88,28 @@ object StudyStatsDialog {
             if (weak != null) {
                 append("建议：").append(Subject.label(weak.subject))
                     .append("正确率 ").append(weak.accuracyPercent)
-                    .append("%，").append(suggestion(weak.subject)).append("。")
+                    .append("%，").append(suggestion(weak.subject)).append("。\n\n")
             } else {
-                append("近 7 天各科正确率较稳定，继续保持。")
+                append("近 7 天各科正确率较稳定，继续保持。\n\n")
             }
+        }
+
+        if (review.total > 0) {
+            append("错题复习：今日 ").append(review.todayTotal).append(" 题 · 近 7 天 ")
+                .append(review.total).append(" 题 · 正确率 ")
+                .append(review.accuracyPercent).append("%\n")
+            val reviewSubjects = review.bySubject
+                .filter { it.total > 0 }
+                .sortedBy { orderOf(it.subject) }
+            if (reviewSubjects.isNotEmpty()) {
+                append("分科：")
+                append(reviewSubjects.joinToString(" · ") {
+                    "${Subject.label(it.subject)} ${it.total} 题/${it.accuracyPercent}%"
+                })
+                append('\n')
+            }
+        } else {
+            append("错题复习：近 7 天还没有复习记录（错题到期后会在锁屏优先出现）。")
         }
     }
 

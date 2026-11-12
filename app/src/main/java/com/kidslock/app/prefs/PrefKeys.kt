@@ -29,6 +29,7 @@ internal object PrefKeys {
     const val QUESTION_JUDGMENT = "question_judgment"
     const val QUESTION_FILL = "question_fill"
     const val REVIEW_BOOST = "review_boost"
+    const val REVIEW_BOOST_RATIO = "review_boost_ratio"
     const val ADAPTIVE_DIFFICULTY = "adaptive_difficulty"
     const val ADAPTIVE_GRADE = "adaptive_grade"
     const val RECENT_ANSWERS = "recent_answers"
@@ -44,6 +45,8 @@ internal object PrefKeys {
 
     // 学习统计：按天 × 科目记录答题数/正确数，另存每日目标与连续达标
     const val STUDY_STAT_PREFIX = "study_day_"
+    // 错题复习统计：独立前缀，避免和普通答题混淆
+    const val REVIEW_STAT_PREFIX = "review_day_"
     const val STUDY_GOAL_MET_PREFIX = "study_goal_met_"
     const val STUDY_GOAL_ENABLED = "study_goal_enabled"
     const val STUDY_GOAL_QUESTIONS = "study_goal_questions"

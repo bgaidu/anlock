@@ -61,6 +61,8 @@ class SettingsCodecTest {
         assertTrue(SettingsCodec.isAllowed("study_best_streak"))
         assertTrue(SettingsCodec.isAllowed("study_day_2026-11-12_math_total"))
         assertTrue(SettingsCodec.isAllowed("study_goal_met_2026-11-12"))
+        assertTrue(SettingsCodec.isAllowed("review_boost_ratio"))
+        assertTrue(SettingsCodec.isAllowed("review_day_2026-11-12_math_total"))
         // PIN 永远不进备份
         assertFalse(SettingsCodec.isAllowed("parent_pin"))
         assertFalse(SettingsCodec.isAllowed("pin_salt"))

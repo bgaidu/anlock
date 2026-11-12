@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.Random
 
 /**
  * 错题池 + SM-2 间隔重复。
@@ -37,6 +38,7 @@ object ReviewStore {
     )
 
     private val lock = Any()
+    private val random = Random()
 
     fun keyOf(q: Question): String = q.subject + "|" + q.id
 
@@ -77,6 +79,28 @@ object ReviewStore {
             save(ctx, items)
         }
     }
+
+    fun statusOf(item: Item): ReviewMastery.Status =
+        ReviewMastery.status(item.reps, item.intervalDays, item.dueDay, todayDay())
+
+    /** 家长手动「标记已掌握 / 恢复复习」，不改动其他错题。 */
+    fun setMastered(ctx: Context, key: String, mastered: Boolean) {
+        synchronized(lock) {
+            val items = load(ctx)
+            val item = items.firstOrNull { it.key == key } ?: return
+            val state = if (mastered) {
+                ReviewMastery.masteredState(todayDay())
+            } else {
+                ReviewMastery.restoreState(todayDay())
+            }
+            item.reps = state.reps
+            item.intervalDays = state.intervalDays
+            item.dueDay = state.dueDay
+            save(ctx, items)
+        }
+    }
+
+    private fun todayDay(): Long = epochDay(System.currentTimeMillis())
 
     fun clear(ctx: Context) {
         synchronized(lock) {
@@ -145,15 +169,18 @@ object ReviewStore {
     }
 
     private fun toQuestion(item: Item): Question {
+        // 每次出现都打乱选项，避免孩子记住「答案在第几个」
+        val shuffled = OptionShuffle.shuffle(item.options, item.correctIndex, random)
         return Question(
             stem = item.stem,
             hint = item.hint,
-            options = item.options,
-            correctIndex = item.correctIndex,
+            options = shuffled.options,
+            correctIndex = shuffled.correctIndex,
             subject = item.subject,
             id = item.id,
             stemStyle = if (item.style == Question.StemStyle.HANZI.name)
-                Question.StemStyle.HANZI else Question.StemStyle.NORMAL
+                Question.StemStyle.HANZI else Question.StemStyle.NORMAL,
+            isReview = true
         )
     }
 

@@ -22,12 +22,17 @@ object WeeklyReportNotifier {
         val totalMinutes = (totalMs + 59_999) / 60_000
         val acc = pref.getAccuracyPercent()
         val due = ReviewStore.dueCount(context)
+        val review = pref.getReviewStats(7)
 
         val summary = buildString {
             append("本周合计 ").append(formatMinutes(totalMinutes))
             if (acc >= 0) append(" · 正确率 ").append(acc).append('%')
             append("\n星星 ").append(pref.getStars()).append(" 颗")
             if (due > 0) append(" · 错题待复习 ").append(due).append(" 道")
+            if (review.total > 0) {
+                append(" · 错题复习 ").append(review.total).append(" 题/")
+                    .append(review.accuracyPercent).append('%')
+            }
         }
 
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return

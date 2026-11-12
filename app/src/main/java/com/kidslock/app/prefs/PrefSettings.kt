@@ -34,6 +34,10 @@ interface QuestionSettings {
     fun setJudgmentEnabled(enabled: Boolean)
     fun isReviewBoostEnabled(): Boolean
     fun setReviewBoostEnabled(enabled: Boolean)
+
+    /** 错题加练占比：3 = 1/3（默认）、2 = 1/2、1 = 全部。 */
+    fun getReviewBoostRatio(): Int
+    fun setReviewBoostRatio(ratio: Int)
     fun isFillBlankEnabled(): Boolean
     fun setFillBlankEnabled(enabled: Boolean)
     fun isAdaptiveDifficultyEnabled(): Boolean
@@ -90,6 +94,12 @@ interface RewardSettings {
 interface StudyStatsSettings {
     /** 记录一道题的答题结果；subject 使用 Subject 的字符串值（pinyin/math/...）。 */
     fun recordStudyAnswer(subject: String, correct: Boolean)
+
+    /** 记录一道错题复习结果（只统计错题池里再次出现的题）。 */
+    fun recordReviewAnswer(subject: String, correct: Boolean)
+
+    /** 近 [days] 天的分科错题复习统计。 */
+    fun getReviewStats(days: Int = 7): ReviewStatsSummary
 
     /** 近 [days] 天的分科统计 + 今日目标/连续达标状态。 */
     fun getStudyStats(days: Int = 7): StudyStatsSummary

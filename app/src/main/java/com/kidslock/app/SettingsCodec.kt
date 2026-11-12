@@ -21,6 +21,7 @@ object SettingsCodec {
         add("question_judgment")
         add("question_fill")
         add("review_boost")
+        add("review_boost_ratio")
         add("adaptive_difficulty")
         add("adaptive_grade")
         add("stars")
@@ -57,7 +58,8 @@ object SettingsCodec {
         "app_limit_min_",
         "app_limit_weekend_",
         "study_day_",
-        "study_goal_met_"
+        "study_goal_met_",
+        "review_day_"
     )
 
     fun isAllowed(key: String): Boolean =

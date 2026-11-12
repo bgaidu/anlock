@@ -11,9 +11,11 @@ import com.kidslock.app.prefs.PrefKeys.QUESTION_JUDGMENT
 import com.kidslock.app.prefs.PrefKeys.QUESTION_SUBJECTS
 import com.kidslock.app.prefs.PrefKeys.RECENT_ANSWERS
 import com.kidslock.app.prefs.PrefKeys.REVIEW_BOOST
+import com.kidslock.app.prefs.PrefKeys.REVIEW_BOOST_RATIO
 import com.kidslock.app.prefs.PrefKeys.SUBJECT_GRADE_PREFIX
 import com.kidslock.app.prefs.PrefKeys.UNLOCK_COUNT
 import com.kidslock.app.question.AdaptiveDifficulty
+import com.kidslock.app.question.ReviewQuota
 
 /** 出题设置：年级、分科年级、科目、题型开关、自适应难度与最近答题。 */
 class QuestionStore(private val prefs: SharedPreferences) : QuestionSettings {
@@ -70,6 +72,13 @@ class QuestionStore(private val prefs: SharedPreferences) : QuestionSettings {
 
     override fun setReviewBoostEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(REVIEW_BOOST, enabled).apply()
+    }
+
+    override fun getReviewBoostRatio(): Int =
+        ReviewQuota.sanitize(prefs.getInt(REVIEW_BOOST_RATIO, ReviewQuota.THIRD))
+
+    override fun setReviewBoostRatio(ratio: Int) {
+        prefs.edit().putInt(REVIEW_BOOST_RATIO, ReviewQuota.sanitize(ratio)).apply()
     }
 
     override fun isFillBlankEnabled(): Boolean = prefs.getBoolean(QUESTION_FILL, false)

@@ -41,6 +41,14 @@ object WeeklyReportDialog {
             append("星星：").append(pref.getStars()).append(" 颗 · 最高连对 ")
                 .append(pref.getBestCombo()).append(" 题\n")
             append("错题待复习：").append(ReviewStore.dueCount(activity)).append(" 道")
+            val review = pref.getReviewStats(7)
+            append("\n错题复习：")
+            if (review.total > 0) {
+                append("近 7 天 ").append(review.total).append(" 题 · 正确率 ")
+                    .append(review.accuracyPercent).append("%")
+            } else {
+                append("近 7 天暂无记录")
+            }
 
             val study = pref.getStudyStats(7)
             val subjectStats = study.bySubject

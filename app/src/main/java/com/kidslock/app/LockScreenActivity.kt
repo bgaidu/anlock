@@ -373,6 +373,9 @@ class LockScreenActivity : AppCompatActivity() {
     private fun applyAnswer(correct: Boolean) {
         pref.recordAnswer(correct)
         pref.recordStudyAnswer(currentQuestion.subject, correct)
+        if (currentQuestion.isReview) {
+            pref.recordReviewAnswer(currentQuestion.subject, correct)
+        }
         engine.recordResult(currentQuestion, correct)
 
         if (correct) {

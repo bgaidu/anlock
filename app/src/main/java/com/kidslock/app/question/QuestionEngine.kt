@@ -17,6 +17,7 @@ class QuestionEngine private constructor(
     private val gradeBySubject: Map<String, Int>,
     private val judgmentEnabled: Boolean,
     private val reviewBoostEnabled: Boolean,
+    private val reviewBoostRatio: Int,
     private val fillBlankEnabled: Boolean
 ) {
     companion object {
@@ -84,7 +85,8 @@ class QuestionEngine private constructor(
             val schedule = buildSchedule(effective, total, Random())
             return QuestionEngine(
                 ctx, list, bySubject, schedule, grade, gradesBySubject,
-                pref.isJudgmentEnabled(), pref.isReviewBoostEnabled(), pref.isFillBlankEnabled()
+                pref.isJudgmentEnabled(), pref.isReviewBoostEnabled(),
+                pref.getReviewBoostRatio(), pref.isFillBlankEnabled()
             )
         }
 
@@ -183,10 +185,9 @@ class QuestionEngine private constructor(
     private var sinceJudgment = 0
 
     init {
-        // 到期错题优先复习：最多占本次解锁题量的 1/3（至少 1 道）；家长可关闭
+        // 到期错题优先复习：占比由家长设置（默认最多 1/3，至少 1 道）
         if (reviewBoostEnabled) {
-            val total = schedule.size
-            val limit = ((total / 3).coerceAtLeast(1)).coerceAtMost(5)
+            val limit = ReviewQuota.limit(schedule.size, reviewBoostRatio)
             reviewQueue.addAll(ReviewStore.dueQuestions(context, limit))
         }
     }

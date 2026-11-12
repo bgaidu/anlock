@@ -26,6 +26,17 @@ data class StudyStatsSummary(
         get() = StudyStatsPolicy.accuracyPercent(total, correct)
 }
 
+/** 错题复习统计（只统计错题池里再次出现的题）。 */
+data class ReviewStatsSummary(
+    val total: Int,
+    val correct: Int,
+    val bySubject: List<SubjectStudyStat>,
+    val todayTotal: Int
+) {
+    val accuracyPercent: Int
+        get() = StudyStatsPolicy.accuracyPercent(total, correct)
+}
+
 /**
  * 学习统计的纯逻辑：不依赖 Android，便于 JVM 单测。
  *

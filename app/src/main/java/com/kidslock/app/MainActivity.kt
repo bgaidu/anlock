@@ -35,6 +35,8 @@ import com.kidslock.app.question.BankRepository
 import com.kidslock.app.question.CustomBankStore
 import com.kidslock.app.question.Grade
 import com.kidslock.app.question.QuestionEngine
+import com.kidslock.app.question.ReviewMastery
+import com.kidslock.app.question.ReviewQuota
 import com.kidslock.app.question.ReviewStore
 import com.kidslock.app.question.Subject
 import org.json.JSONArray
@@ -133,6 +135,8 @@ class MainActivity : AppCompatActivity() {
     private var pendingAppLimitPackage: String? = null
     private var pendingParentBonus = false
     private var wizardAutoShown = false
+    /** 错题本筛选：0=全部、1=待复习、2=已掌握。 */
+    private var reviewFilter = 0
 
     private val updateRunnable = object : Runnable {
         override fun run() {
@@ -893,8 +897,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showReviewBookDialog() {
-        val items = ReviewStore.all(this)
-        if (items.isEmpty()) {
+        val all = ReviewStore.all(this)
+        if (all.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("错题本")
                 .setMessage("错题本是空的。孩子答错的题会自动收进来，到期后在锁屏答题里优先复习。")
@@ -902,8 +906,29 @@ class MainActivity : AppCompatActivity() {
                 .show()
             return
         }
+        val today = todayEpochDay()
+        fun statusOf(item: ReviewStore.Item) =
+            ReviewMastery.status(item.reps, item.intervalDays, item.dueDay, today)
+        val filterLabels = arrayOf("全部", "待复习", "已排期", "已掌握")
+        val items = when (reviewFilter) {
+            1 -> all.filter { statusOf(it) == ReviewMastery.Status.DUE }
+            2 -> all.filter { statusOf(it) == ReviewMastery.Status.SCHEDULED }
+            3 -> all.filter { statusOf(it) == ReviewMastery.Status.MASTERED }
+            else -> all
+        }
+        if (items.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("错题本 · ${filterLabels[reviewFilter]}")
+                .setMessage("该分类下还没有错题。")
+                .setPositiveButton("筛选") { _, _ -> showReviewFilterDialog() }
+                .setNegativeButton("关闭", null)
+                .show()
+            return
+        }
         val primary = items.map { "【${Subject.label(it.subject)}】${it.stem}" }
-        val secondary = items.map { reviewDueLabel(it.dueDay) }
+        val secondary = items.map {
+            "${ReviewMastery.label(statusOf(it))} · ${reviewDueLabel(it.dueDay)} · 已复习 ${it.reps} 次"
+        }
         val adapter = object : ArrayAdapter<String>(
             this,
             android.R.layout.simple_list_item_2,
@@ -918,20 +943,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
         AlertDialog.Builder(this)
-            .setTitle("错题本（共 ${items.size} 题）")
+            .setTitle("错题本 · ${filterLabels[reviewFilter]}（${items.size} 题）")
             .setAdapter(adapter) { _, which -> showReviewItemDialog(items[which]) }
+            .setPositiveButton("筛选") { _, _ -> showReviewFilterDialog() }
             .setNeutralButton("清空") { _, _ -> confirmClearReviewBook() }
             .setNegativeButton("关闭", null)
             .show()
     }
 
+    private fun showReviewFilterDialog() {
+        val labels = arrayOf("全部", "待复习", "已排期", "已掌握")
+        AlertDialog.Builder(this)
+            .setTitle("筛选错题")
+            .setSingleChoiceItems(labels, reviewFilter) { dialog, which ->
+                reviewFilter = which
+                dialog.dismiss()
+                showReviewBookDialog()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     private fun showReviewItemDialog(item: ReviewStore.Item) {
         val answer = item.options.getOrNull(item.correctIndex) ?: ""
+        val status = ReviewMastery.status(item.reps, item.intervalDays, item.dueDay, todayEpochDay())
+        val mastered = status == ReviewMastery.Status.MASTERED
         val message = buildString {
             append("科目：").append(Subject.label(item.subject)).append('\n')
             append("题干：").append(item.stem).append('\n')
             if (item.hint.isNotBlank()) append("提示：").append(item.hint).append('\n')
             append("正确答案：").append(answer).append('\n')
+            append("掌握度：").append(ReviewMastery.label(status)).append('\n')
             append("已复习 ").append(item.reps).append(" 次 · ").append(reviewDueLabel(item.dueDay))
         }
         AlertDialog.Builder(this)
@@ -941,10 +983,19 @@ class MainActivity : AppCompatActivity() {
                 ReviewStore.remove(this, item.key)
                 updateStatus()
                 toast("已从错题本移除")
+                showReviewBookDialog()
+            }
+            .setNeutralButton(if (mastered) "恢复复习" else "标记已掌握") { _, _ ->
+                ReviewStore.setMastered(this, item.key, !mastered)
+                updateStatus()
+                toast(if (mastered) "已恢复复习，今天会重新出现" else "已标记为掌握，30 天后再复习")
+                showReviewBookDialog()
             }
             .setNegativeButton("关闭", null)
             .show()
     }
+
+    private fun todayEpochDay(): Long = System.currentTimeMillis() / 86_400_000L
 
     private fun confirmClearReviewBook() {
         val count = ReviewStore.all(this).size
@@ -1630,7 +1681,8 @@ class MainActivity : AppCompatActivity() {
         btnQuestionTypes.text = "题型与复习：判断" +
                 (if (pref.isJudgmentEnabled()) "开" else "关") +
                 " · 填空" + (if (pref.isFillBlankEnabled()) "开" else "关") +
-                " · 错题加练" + (if (pref.isReviewBoostEnabled()) "开" else "关") +
+                " · 错题加练" + (if (pref.isReviewBoostEnabled())
+                    ReviewQuota.label(pref.getReviewBoostRatio()) else "关") +
                 " · 自适应" + (if (pref.isAdaptiveDifficultyEnabled()) "开" else "关")
         btnEyeRest.text = if (pref.isEyeRestEnabled())
             "护眼提醒：每 ${pref.getEyeRestIntervalMinutes()} 分钟（全屏 20 秒）"
