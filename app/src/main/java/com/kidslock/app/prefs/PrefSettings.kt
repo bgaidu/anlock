@@ -74,6 +74,9 @@ interface RewardSettings {
 
     fun getStars(): Int
     fun addStars(count: Int)
+
+    /** 扣星（答错惩罚）。最低扣到 0，返回实际扣掉的数量。 */
+    fun removeStars(count: Int): Int
     fun getBestCombo(): Int
     fun recordCombo(combo: Int)
 

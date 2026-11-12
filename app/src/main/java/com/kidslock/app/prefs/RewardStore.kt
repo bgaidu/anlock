@@ -34,6 +34,16 @@ class RewardStore(private val prefs: SharedPreferences) : RewardSettings {
         prefs.edit().putInt(STARS, getStars() + count).apply()
     }
 
+    override fun removeStars(count: Int): Int {
+        if (count <= 0) return 0
+        val stars = getStars()
+        val deducted = count.coerceAtMost(stars)
+        if (deducted > 0) {
+            prefs.edit().putInt(STARS, stars - deducted).apply()
+        }
+        return deducted
+    }
+
     override fun getBestCombo(): Int = prefs.getInt(STAT_BEST_COMBO, 0)
 
     override fun recordCombo(combo: Int) {

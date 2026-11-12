@@ -50,8 +50,8 @@ class LockScreenActivity : AppCompatActivity() {
 
     private lateinit var currentQuestion: Question
     private lateinit var currentOptions: List<String>
-    private var correctCount = 0
-    private var requiredCount = 0
+    /** 答对累计、答错保留进度（详情见 [AnswerProgress]）。 */
+    private var progress = AnswerProgress(required = 0)
     private var comboCount = 0
     private var groupCorrect = 0
 
@@ -122,7 +122,7 @@ class LockScreenActivity : AppCompatActivity() {
 
         pref = PrefManager(this)
         engine = QuestionEngine.create(this, pref)
-        requiredCount = pref.unlockCount
+        progress = AnswerProgress(required = pref.unlockCount)
         KioskManager.applyOwnerPolicies(this)
         LockOverlayManager.hideOverlay(this)
 
@@ -376,7 +376,6 @@ class LockScreenActivity : AppCompatActivity() {
         engine.recordResult(currentQuestion, correct)
 
         if (correct) {
-            correctCount++
             comboCount++
             groupCorrect++
             pref.recordCombo(comboCount)
@@ -386,26 +385,30 @@ class LockScreenActivity : AppCompatActivity() {
                 pref.addStars(1)
                 groupCorrect = 0
             }
+            progress = progress.onCorrect()
             updateProgress()
             showFeedback(
                 if (groupBonus) "答对了！本组 5 题全对，奖励 2 颗星 ${Glyphs.star}${Glyphs.star}"
                 else "答对了！+1 颗星 ${Glyphs.star} · 已连对 $comboCount 题",
                 R.color.correct_green
             )
-            if (correctCount >= requiredCount) {
+            if (progress.unlocked) {
                 unlocking = true
                 handler.postDelayed({ unlock() }, 600)
             } else {
                 scheduleNext(1000)
             }
         } else {
-            correctCount = 0
+            // 答错不清零：保留已答对进度，换一道新题继续，星星扣到 0 为止
+            val lostStar = pref.removeStars(1)
             comboCount = 0
             groupCorrect = 0
+            progress = progress.onWrong()
             updateProgress()
             val correctText = currentOptions.getOrNull(currentQuestion.correctIndex) ?: ""
+            val starText = if (lostStar > 0) "扣 1 颗星 ${Glyphs.star}" else "星星已扣完"
             showFeedback(
-                "答错了，正确答案：$correctText · 已加入错题池，下次优先复习",
+                "答错了，正确答案：$correctText · $starText，换一道新题继续",
                 R.color.wrong_red
             )
             scheduleNext(2200)
@@ -425,12 +428,11 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun updateProgress() {
-        val remaining = (requiredCount - correctCount).coerceAtLeast(0)
         val starText = " · ${Glyphs.star} ${pref.getStars()}"
-        tvProgress.text = if (remaining == 0) {
-            String.format("已答对 %d/%d 道题，即将解锁…", correctCount, requiredCount) + starText
+        tvProgress.text = if (progress.unlocked) {
+            String.format("已答对 %d/%d 道题，即将解锁…", progress.correct, progress.required) + starText
         } else {
-            String.format("已答对 %d 题，还剩 %d 题即可解锁", correctCount, remaining) + starText
+            String.format("已答对 %d 题，还剩 %d 题即可解锁", progress.correct, progress.remaining) + starText
         }
         tvQuota.text = dailyQuotaText()
         tvQuota.visibility = View.VISIBLE
