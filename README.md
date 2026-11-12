@@ -302,6 +302,11 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - **家长操作**：拦截层点「家长加时」会进入 PIN 门禁，验证后直接打开该应用的限额编辑；可加时 10 分钟、重置今日用量或取消限额。设置页状态显示已设置应用数与「使用情况访问」缺失提示，管控体检同步说明影响；局域网面板显示当前应用的限额/今日用量，并可一键给当前应用加时。
 - **备份与开关**：`app_limit_enabled` 与各应用平日/周末额度纳入设置备份；当日加时/重置偏移为临时数据，刻意不备份。应用限额开启后常驻守护、开机自启，关闭后若没有计时/时段/局域网任务则自动停止服务。
 
+### 优化（1.0.1.26）
+
+- **补齐通知刷新链路**：1.0.1.25 把正文改成分钟粒度并加了去重，但真机实测仍约每 31 秒刷新一次。原因是无障碍服务每 30 秒巡检时都会 `startService`，而 `onStartCommand` 里的 `startForeground` 会绕过去重直接重新提交通知。现在 `RecoveryAccessibilityService.startServiceSafely()` 在 `LockService.runningInstance != null` 时直接返回，`Revival.ensureRunning()` 也只在服务确实不在时才拉起，通知刷新重新回到「分钟文案变化才更新」。
+- **实测结果**：见下文真机验证（1.0.1.26 复测后补充）。
+
 ### 优化（1.0.1.25）
 
 - **常驻通知降频**：原来 `TimerManager.onTick` 每秒调用一次 `updateNotification()`，荣耀等系统会记录 `HwNotificationEntryObserver: reportNotification failed, more than 2000`。现在剩余时间改为分钟粒度文案（「剩余观看时间：约 N 分钟」，向上取整，不足 1 分钟显示「剩余观看时间不足 1 分钟」），并由 `NotificationRefreshGate` 对比正文：文本没变就跳过 `notify()`，只有跨分钟或锁定/解锁/熄屏暂停等状态切换时才真正刷新，通知更新频率降到约每分钟一次。

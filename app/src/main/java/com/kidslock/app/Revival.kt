@@ -104,21 +104,23 @@ object Revival {
             return
         }
         RecoveryAccessibilityService.trySelfEnable(context)
-        try {
-            val intent = Intent(context, LockService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+        if (LockService.runningInstance == null) {
+            try {
+                val intent = Intent(context, LockService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                Log.i(TAG, "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)")
+                Diag.i(
+                    "Revival",
+                    "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)"
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "revive service failed via $source", e)
+                Diag.w("Revival", "revive service failed via $source", e)
             }
-            Log.i(TAG, "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)")
-            Diag.i(
-                "Revival",
-                "service revived via $source (locked=$locked timer=$timerActive schedule=$scheduleOn appLimit=$appLimitOn)"
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "revive service failed via $source", e)
-            Diag.w("Revival", "revive service failed via $source", e)
         }
         if (locked && !LockScreenActivity.isOnTop() && !LockScreenActivity.isStarting()) {
             try {

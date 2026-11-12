@@ -235,6 +235,9 @@ class RecoveryAccessibilityService : AccessibilityService() {
     }
 
     private fun startServiceSafely() {
+        // 服务还活着就不要再 startService：onStartCommand 里的 startForeground 会重新
+        // 提交一次常驻通知，30 秒一次的巡检会让通知刷新频率远超「每分钟一次」。
+        if (LockService.runningInstance != null) return
         try {
             startService(Intent(this, LockService::class.java))
         } catch (e: Exception) {
