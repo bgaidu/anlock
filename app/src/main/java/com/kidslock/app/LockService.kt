@@ -89,6 +89,8 @@ class LockService : Service() {
     private var lastAppLimitCount = -1
     private var lastCapabilityCheck = 0L
     private var lastMonitoring: Boolean? = null
+    /** 常驻通知去重：正文（按分钟粒度）没变就不重复 notify，规避厂商通知限流。 */
+    private val notificationGate = NotificationRefreshGate()
     private val mediaTick = object : Runnable {
         override fun run() {
             if (pref.isLocked()) {
@@ -164,8 +166,10 @@ class LockService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification(pref.getRemainingMillis()))
-        updateNotification()
+        val initialRemaining = pref.getRemainingMillis()
+        // startForeground 已经发出通知，先记下正文，随后的 updateNotification 不会重复 notify
+        notificationGate.reset(notificationText(initialRemaining))
+        startForeground(NOTIFICATION_ID, buildNotification(initialRemaining))
 
         if (intent != null && ACTION_APP_FOREGROUND == intent.action) {
             intent.getStringExtra(EXTRA_APP_PACKAGE)?.let { onAppForeground(it) }
@@ -574,8 +578,9 @@ class LockService : Service() {
         }
     }
 
-    private fun buildNotification(remaining: Long): Notification {
-        val contentText = when {
+    /** 常驻通知正文：状态不变且剩余分钟数没变时保持稳定，避免按秒刷新。 */
+    private fun notificationText(remaining: Long): String {
+        return when {
             pref.isLocked() && pref.isLockedBySchedule() -> {
                 val day = pref.scheduleDayIndex()
                 "已到休息时段（今天 ${pref.scheduleWindowLabel(day)}），家长可用 PIN 放行"
@@ -594,9 +599,13 @@ class LockService : Service() {
             }
             !pref.isTimerActive() && pref.isAppLimitEnabled() ->
                 "应用限额守护中 · 已设置 ${pref.configuredAppPackages().size} 个应用"
-            !timerManager.isScreenOn() -> "熄屏暂停中 · 剩余观看时间：${formatTime(remaining)}"
-            else -> "剩余观看时间：${formatTime(remaining)}"
+            !timerManager.isScreenOn() -> "熄屏暂停中 · ${NotificationText.remaining(remaining)}"
+            else -> NotificationText.remaining(remaining)
         }
+    }
+
+    private fun buildNotification(remaining: Long): Notification {
+        val contentText = notificationText(remaining)
         val openIntent = Intent(this, MainActivity::class.java)
         openIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         val pendingIntent = PendingIntent.getActivity(
@@ -624,9 +633,17 @@ class LockService : Service() {
             .build()
     }
 
+    /**
+     * 刷新常驻通知：正文按分钟粒度生成，文本未变化时直接跳过 notify()，
+     * 让系统通知栏（以及厂商的通知限流统计）大约每分钟才收到一次更新。
+     * 锁定/解锁/熄屏暂停等状态切换会改变正文，仍然立即刷新。
+     */
     private fun updateNotification() {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
-        nm?.notify(NOTIFICATION_ID, buildNotification(timerManager.getRemainingMillis()))
+        val nm = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val remaining = timerManager.getRemainingMillis()
+        val text = notificationText(remaining)
+        if (!notificationGate.shouldRefresh(text)) return
+        nm.notify(NOTIFICATION_ID, buildNotification(remaining))
     }
 
     /**
@@ -667,13 +684,6 @@ class LockService : Service() {
             EyeRestOverlay.show(this)
             pref.markEyeRestShown()
         }
-    }
-
-    private fun formatTime(millis: Long): String {
-        val totalSeconds = millis / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return String.format("%02d:%02d", minutes, seconds)
     }
 
     /** 每 30 秒检查一次拦截能力，权限被系统收回时主动通知家长（只提示一次）。 */
