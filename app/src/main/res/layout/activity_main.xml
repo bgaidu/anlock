@@ -683,6 +683,20 @@
             android:layout_marginTop="@dimen/spacing_small"
             android:visibility="gone" />
 
+        <!-- 学习数据：分科正确率、近 7 天统计、每日目标与连续达标 -->
+        <Button
+            android:id="@+id/btnStudyStats"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/btn_height"
+            android:layout_marginTop="@dimen/spacing_small"
+            android:minWidth="300dp"
+            android:text="学习数据与目标"
+            android:textSize="@dimen/text_button"
+            android:background="@drawable/btn_settings_bg"
+            android:textColor="@color/btn_text"
+            android:focusable="true"
+            android:clickable="true" />
+
         <Button
             android:id="@+id/btnResetStats"
             android:layout_width="wrap_content"

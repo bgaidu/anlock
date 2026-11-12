@@ -3,7 +3,7 @@ package com.kidslock.app.prefs
 import java.util.Calendar
 
 /**
- * PrefManager 的存储契约。拆成五个内聚的小接口后：
+ * PrefManager 的存储契约。拆成六个内聚的小接口后：
  * - 每个 Store 只关心自己的一组键，读代码不必在 1000 行里找；
  * - PrefManager 通过 Kotlin 的 `by` 委托保持原有公开 API，调用方无需改动；
  * - 以后做多孩子档案时，把这些 Store 换成带 profile 前缀的实现即可。
@@ -82,6 +82,27 @@ interface RewardSettings {
     fun getStatCorrect(): Int
     fun getAccuracyPercent(): Int
     fun recordAnswer(correct: Boolean)
+}
+
+interface StudyStatsSettings {
+    /** 记录一道题的答题结果；subject 使用 Subject 的字符串值（pinyin/math/...）。 */
+    fun recordStudyAnswer(subject: String, correct: Boolean)
+
+    /** 近 [days] 天的分科统计 + 今日目标/连续达标状态。 */
+    fun getStudyStats(days: Int = 7): StudyStatsSummary
+    fun getTodayStudyTotal(): Int
+
+    fun isStudyGoalEnabled(): Boolean
+    fun setStudyGoalEnabled(enabled: Boolean)
+    fun getStudyGoalQuestions(): Int
+    fun setStudyGoalQuestions(questions: Int)
+
+    fun isTodayGoalMet(): Boolean
+    fun getStudyStreakDays(): Int
+    fun getBestStudyStreak(): Int
+
+    /** 清空学习历史与连续达标，保留家长设置的每日目标。 */
+    fun resetStudyStats()
 }
 
 interface AppOptionSettings {

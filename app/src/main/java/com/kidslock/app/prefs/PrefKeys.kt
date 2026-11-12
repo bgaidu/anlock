@@ -41,6 +41,14 @@ internal object PrefKeys {
     const val STAT_TOTAL = "stat_total"
     const val STARS = "stars"
     const val STAT_BEST_COMBO = "stat_best_combo"
+
+    // 学习统计：按天 × 科目记录答题数/正确数，另存每日目标与连续达标
+    const val STUDY_STAT_PREFIX = "study_day_"
+    const val STUDY_GOAL_MET_PREFIX = "study_goal_met_"
+    const val STUDY_GOAL_ENABLED = "study_goal_enabled"
+    const val STUDY_GOAL_QUESTIONS = "study_goal_questions"
+    const val STUDY_BEST_STREAK = "study_best_streak"
+    const val STUDY_LAST_PRUNE = "study_last_prune"
     const val LEGACY_MIGRATED = "legacy_defaults_migrated"
     const val EMERGENCY_REBOOT_UNLOCK = "emergency_reboot_unlock"
     const val SHOW_COUNTDOWN = "show_countdown"
@@ -92,6 +100,7 @@ internal object PrefKeys {
     const val DEFAULT_SCHEDULE_END_MIN = 21 * 60
     const val DEFAULT_STAR_EXCHANGE_STARS = 10
     const val DEFAULT_STAR_EXCHANGE_MINUTES = 10
+    const val DEFAULT_STUDY_GOAL_QUESTIONS = 20
     const val LAN_TOKEN_LENGTH = 10
     const val LAN_TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 

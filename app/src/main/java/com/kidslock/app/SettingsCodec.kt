@@ -28,6 +28,9 @@ object SettingsCodec {
         add("stat_total")
         add("stat_best_combo")
         add("recent_answers")
+        add("study_goal_enabled")
+        add("study_goal_questions")
+        add("study_best_streak")
         add("star_exchange_stars")
         add("star_exchange_minutes")
         add("daily_limit_min")
@@ -52,7 +55,9 @@ object SettingsCodec {
     /** 按包名保存的应用限额键：只备份家长配置，不备份当日加时/重置偏移。 */
     private val ALLOWED_PREFIXES = listOf(
         "app_limit_min_",
-        "app_limit_weekend_"
+        "app_limit_weekend_",
+        "study_day_",
+        "study_goal_met_"
     )
 
     fun isAllowed(key: String): Boolean =

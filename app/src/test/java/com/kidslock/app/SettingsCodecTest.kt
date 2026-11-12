@@ -56,6 +56,11 @@ class SettingsCodecTest {
         assertTrue(SettingsCodec.isAllowed("app_limit_enabled"))
         assertTrue(SettingsCodec.isAllowed("app_limit_min_com.example.game"))
         assertTrue(SettingsCodec.isAllowed("app_limit_weekend_com.example.game"))
+        assertTrue(SettingsCodec.isAllowed("study_goal_enabled"))
+        assertTrue(SettingsCodec.isAllowed("study_goal_questions"))
+        assertTrue(SettingsCodec.isAllowed("study_best_streak"))
+        assertTrue(SettingsCodec.isAllowed("study_day_2026-11-12_math_total"))
+        assertTrue(SettingsCodec.isAllowed("study_goal_met_2026-11-12"))
         // PIN 永远不进备份
         assertFalse(SettingsCodec.isAllowed("parent_pin"))
         assertFalse(SettingsCodec.isAllowed("pin_salt"))

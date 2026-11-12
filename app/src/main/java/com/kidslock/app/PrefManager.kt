@@ -22,6 +22,8 @@ import com.kidslock.app.prefs.RewardSettings
 import com.kidslock.app.prefs.RewardStore
 import com.kidslock.app.prefs.ScheduleSettings
 import com.kidslock.app.prefs.ScheduleStore
+import com.kidslock.app.prefs.StudyStatsSettings
+import com.kidslock.app.prefs.StudyStatsStore
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -31,7 +33,7 @@ import java.util.Locale
  * 设置与运行时状态的门面。
  *
  * 原来这个类有 1000 行、几十个互不相干的键，改一处要通读全文。现在按职责拆成
- * PIN / 出题 / 时段 / 奖励 / 应用开关五个 Store，由 Kotlin 的 `by` 委托暴露原方法，
+ * PIN / 出题 / 时段 / 奖励 / 学习统计 / 应用开关六个 Store，由 Kotlin 的 `by` 委托暴露原方法，
  * 调用方（`pref.xxx`）完全不用改。计时对账、每日额度、锁屏状态这些强耦合逻辑留在本类。
  */
 class PrefManager private constructor(
@@ -41,6 +43,7 @@ class PrefManager private constructor(
     QuestionSettings by QuestionStore(prefs),
     ScheduleSettings by ScheduleStore(prefs),
     RewardSettings by RewardStore(prefs),
+    StudyStatsSettings by StudyStatsStore(prefs),
     AppOptionSettings by AppOptionsStore(prefs),
     AppLimitSettings by AppLimitStore(prefs) {
 

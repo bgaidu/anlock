@@ -370,8 +370,12 @@ class MainActivity : AppCompatActivity() {
         btnResetStats = findViewById(R.id.btnResetStats)
         btnResetStats.setOnClickListener {
             pref.resetStats()
+            pref.resetStudyStats()
             updateStatus()
             toast(getString(R.string.toast_reset_stats))
+        }
+        findViewById<View>(R.id.btnStudyStats).setOnClickListener {
+            StudyStatsDialog.show(this, pref) { updateStatus() }
         }
         btnReviewBook = findViewById(R.id.btnReviewBook)
         btnReviewBook.setOnClickListener { showReviewBookDialog() }
@@ -1674,15 +1678,32 @@ class MainActivity : AppCompatActivity() {
         }
 
         val acc = pref.getAccuracyPercent()
-        if (acc < 0) {
+        val goalText = if (pref.isStudyGoalEnabled()) {
+            buildString {
+                append("今日学习 ").append(pref.getTodayStudyTotal()).append("/")
+                    .append(pref.getStudyGoalQuestions()).append(" 题")
+                if (pref.isTodayGoalMet()) append("（已达标）")
+                val streak = pref.getStudyStreakDays()
+                if (streak > 0) append(" · 连续 ").append(streak).append(" 天")
+            }
+        } else {
+            ""
+        }
+        val statText = if (acc >= 0) {
+            getString(R.string.accuracy_text, acc) +
+                    " · ${Glyphs.star} ${pref.getStars()} 颗 · 最高连对 ${pref.getBestCombo()} 题" +
+                    " · 错题待复习 ${ReviewStore.dueCount(this)} 道"
+        } else {
+            ""
+        }
+        val accuracyText = listOf(statText, goalText).filter { it.isNotEmpty() }.joinToString(" · ")
+        if (accuracyText.isEmpty()) {
             tvAccuracy.visibility = View.GONE
             btnResetStats.visibility = View.GONE
         } else {
-            tvAccuracy.text = getString(R.string.accuracy_text, acc) +
-                    " · ${Glyphs.star} ${pref.getStars()} 颗 · 最高连对 ${pref.getBestCombo()} 题" +
-                    " · 错题待复习 ${ReviewStore.dueCount(this)} 道"
+            tvAccuracy.text = accuracyText
             tvAccuracy.visibility = View.VISIBLE
-            btnResetStats.visibility = View.VISIBLE
+            btnResetStats.visibility = if (acc >= 0) View.VISIBLE else View.GONE
         }
 
         if (pref.isPinModified()) {

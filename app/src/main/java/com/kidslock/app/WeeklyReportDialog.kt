@@ -6,6 +6,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import com.kidslock.app.question.ReviewStore
+import com.kidslock.app.question.Subject
 
 /** 近 7 天使用/答题报告，以及「每周日提醒」开关。 */
 object WeeklyReportDialog {
@@ -40,6 +41,23 @@ object WeeklyReportDialog {
             append("星星：").append(pref.getStars()).append(" 颗 · 最高连对 ")
                 .append(pref.getBestCombo()).append(" 题\n")
             append("错题待复习：").append(ReviewStore.dueCount(activity)).append(" 道")
+
+            val study = pref.getStudyStats(7)
+            val subjectStats = study.bySubject
+                .filter { it.total > 0 }
+                .sortedBy { Subject.ORDER.indexOf(it.subject).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+            if (subjectStats.isNotEmpty()) {
+                append("\n\n近 7 天分科：")
+                for (stat in subjectStats) {
+                    append("\n· ").append(Subject.label(stat.subject)).append("  ")
+                        .append(stat.total).append(" 题 · 正确率 ")
+                        .append(stat.accuracyPercent).append("%")
+                }
+            }
+            if (study.goalEnabled) {
+                append("\n每日目标：").append(study.goalQuestions).append(" 题 · 连续达标 ")
+                    .append(study.streakDays).append(" 天")
+            }
             val apps = AppUsageStats.top(activity, 7, 5)
             if (apps.isNotEmpty()) {
                 append("\n\n使用最多的应用：\n")

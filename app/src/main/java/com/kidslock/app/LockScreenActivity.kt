@@ -372,6 +372,7 @@ class LockScreenActivity : AppCompatActivity() {
     /** 选择题 / 填空题共用的判分与奖励逻辑。 */
     private fun applyAnswer(correct: Boolean) {
         pref.recordAnswer(correct)
+        pref.recordStudyAnswer(currentQuestion.subject, correct)
         engine.recordResult(currentQuestion, correct)
 
         if (correct) {
