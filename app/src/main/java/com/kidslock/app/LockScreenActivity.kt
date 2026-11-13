@@ -14,6 +14,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -64,6 +65,7 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var layoutOptions2: View
     private lateinit var layoutFill: View
     private lateinit var etFillAnswer: EditText
+    private lateinit var scrollRoot: ScrollView
     private lateinit var tvCharacter: TextView
     private lateinit var tvQuestionHint: TextView
     private lateinit var tvProgress: TextView
@@ -135,7 +137,8 @@ class LockScreenActivity : AppCompatActivity() {
                     or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
                     or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                     or WindowManager.LayoutParams.FLAG_FULLSCREEN
-                    or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            // 不要加 FLAG_LAYOUT_NO_LIMITS：它会让系统感知不到软键盘，
+            // adjustResize 失效，填空题的「提交」按钮会被键盘压住。
         )
         window.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -169,6 +172,7 @@ class LockScreenActivity : AppCompatActivity() {
         layoutOptions2 = findViewById(R.id.layoutOptions2)
         layoutFill = findViewById(R.id.layoutFill)
         etFillAnswer = findViewById(R.id.etFillAnswer)
+        scrollRoot = findViewById(R.id.scrollRoot)
         tvCharacter = findViewById(R.id.tvCharacter)
         tvQuestionHint = findViewById(R.id.tvQuestionHint)
         tvProgress = findViewById(R.id.tvProgress)
@@ -187,6 +191,7 @@ class LockScreenActivity : AppCompatActivity() {
         }
 
         initFillInput()
+        setupFillAutoScroll()
 
         findViewById<View>(R.id.btnParentUnlock).setOnClickListener { showPinPad() }
 
@@ -220,6 +225,18 @@ class LockScreenActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnFillSubmit).setOnClickListener { submitFill() }
         etFillAnswer.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
+                submitFill()
+                true
+            } else {
+                false
+            }
+        }
+        // 部分输入法的回车键不派发 IME_ACTION_DONE，兜底把回车当成「提交」
+        etFillAnswer.setOnKeyListener { _, keyCode, event ->
+            if (event.action == android.view.KeyEvent.ACTION_UP &&
+                (keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                    keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)
+            ) {
                 submitFill()
                 true
             } else {
@@ -381,6 +398,21 @@ class LockScreenActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 软键盘弹出时窗口被压缩，内容会高出可视区，把「提交」按钮顶到键盘后面。
+     * 这里在布局变化时把内容滚到底部，保证提交按钮始终可见。
+     */
+    private fun setupFillAutoScroll() {
+        scrollRoot.viewTreeObserver.addOnGlobalLayoutListener {
+            if (!layoutFill.isShown) return@addOnGlobalLayoutListener
+            val submit = findViewById<View>(R.id.btnFillSubmit)
+            val target = layoutFill.top + submit.bottom - scrollRoot.height
+            if (target > scrollRoot.scrollY) {
+                scrollRoot.scrollTo(0, target.coerceAtLeast(0))
+            }
+        }
+    }
+
     private fun showFillMode() {
         layoutOptions1.visibility = View.GONE
         layoutOptions2.visibility = View.GONE
@@ -388,6 +420,9 @@ class LockScreenActivity : AppCompatActivity() {
         etFillAnswer.setText("")
         findViewById<View>(R.id.btnParentUnlock).nextFocusUpId = R.id.btnFillSubmit
         etFillAnswer.post { etFillAnswer.requestFocus() }
+        // 软键盘弹出后窗口会被压缩，滚动内容让「提交」按钮始终可见，
+        // 否则按钮被键盘压住，孩子无法提交、只能一直停在锁屏页。
+        etFillAnswer.postDelayed({ scrollRoot.fullScroll(View.FOCUS_DOWN) }, 250)
     }
 
     private fun submitFill() {

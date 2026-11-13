@@ -12,6 +12,7 @@ import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -139,7 +140,12 @@ object AppLimitDialogs {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
-            scroll.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, height)
+            // AlertDialog 的内容面板是 FrameLayout，测量时会按 MarginLayoutParams 处理子 View；
+            // 若这里用普通 ViewGroup.LayoutParams，measureChildWithMargins 强转失败会直接崩溃。
+            scroll.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                height
+            )
         }
         managerDialog?.show()
     }

@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 
@@ -142,6 +143,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private fun notifyAppLimit(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == "android") return
+        // 输入法窗口不算"使用了某个应用"，否则会往使用统计里塞一个输入法包名
+        if (isInputMethodPackage(pkg)) return
         try {
             val pref = PrefManager(this)
             if (pref.isAppLimitEnabled()) LockService.notifyForeground(this, pkg)
@@ -154,8 +157,12 @@ class RecoveryAccessibilityService : AccessibilityService() {
         try {
             val pref = PrefManager(this)
             if (!pref.isLocked()) return
-            val pkg = event.packageName ?: return
+            val pkg = event.packageName?.toString() ?: return
             if ("com.kidslock.app" == pkg) return
+            // 软键盘不是"外部应用"：填空题必须靠它输入。
+            // 以前这里把输入法窗口当成越界窗口，孩子一点输入框就被踢回桌面 + 锁屏浮层，
+            // 表现为"答题时一调软键盘就冲突、一直在锁屏"。
+            if (isInputMethodPackage(pkg)) return
             val now = SystemClock.elapsedRealtime()
             if (now - lastSuppress < SUPPRESS_DEBOUNCE_MS) return
             lastSuppress = now
@@ -164,6 +171,24 @@ class RecoveryAccessibilityService : AccessibilityService() {
             LockOverlayManager.holdOverlay(this)
         } catch (e: Exception) {
             Log.e(TAG, "suppressForeignWindow failed", e)
+        }
+    }
+
+    /** 判断窗口包名是否是当前启用的输入法（含默认输入法）。 */
+    private fun isInputMethodPackage(pkg: String): Boolean {
+        if (pkg == "android" || pkg == "com.android.systemui") return false
+        return try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            val enabled = imm?.enabledInputMethodList?.any { it.packageName == pkg } == true
+            if (enabled) return true
+            // 兜底：部分 ROM 的输入法不在 enabledInputMethodList 里，再比对默认输入法
+            val defaultIme = Settings.Secure.getString(
+                contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD
+            ) ?: return false
+            defaultIme.substringBefore('/') == pkg
+        } catch (e: Exception) {
+            Log.e(TAG, "isInputMethodPackage failed", e)
+            false
         }
     }
 
