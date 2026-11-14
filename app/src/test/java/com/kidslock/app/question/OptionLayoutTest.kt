@@ -136,4 +136,62 @@ class OptionLayoutTest {
         // 4 选项：第一行左右互逆（边界回绕是刻意行为，不参与互逆断言）
         assertEquals(0, OptionLayout.focus(OptionLayout.focus(0, 4, Direction.RIGHT), 4, Direction.LEFT))
     }
+
+    @Test
+    fun fourOptions_topLeftWrapsLeftToBottomLeft() {
+        // 回归：原实现在 4 选项时把「选项1 向左」映射到 btnOption3（左下角）。
+        // 1.0.1.32 重构曾误写成 btnOption4，遥控器行为会漂移，这里锁死。
+        assertFocus(4, 0, Direction.LEFT, 2)
+        // 相邻的选项3/选项4 之间的左右回绕保持原样
+        assertFocus(4, 2, Direction.LEFT, 3)
+        assertFocus(4, 3, Direction.LEFT, 2)
+    }
+
+    /**
+     * 金标表：逐格复刻重构前 `LockScreenActivity.bindOptionFocus()` 的
+     * `nextFocus{Left,Right,Up,Down}Id` 赋值（含「选项1 向左绕回左下角」这类不直观行为）。
+     * 以后任何改动都必须同时更新这张表，避免悄悄改变遥控器/键盘行为。
+     */
+    @Test
+    fun goldenTable_matchesPreRefactorFocusMap() {
+        val parent = TO_PARENT
+        val table = mapOf(
+            2 to mapOf(
+                0 to intArrayOf(1, 1, 0, parent),
+                1 to intArrayOf(0, 0, 1, parent)
+            ),
+            3 to mapOf(
+                0 to intArrayOf(2, 1, 0, 2),
+                1 to intArrayOf(0, 2, 1, 2),
+                2 to intArrayOf(1, 0, 0, parent)
+            ),
+            4 to mapOf(
+                0 to intArrayOf(2, 1, 0, 2),
+                1 to intArrayOf(0, 3, 1, 3),
+                2 to intArrayOf(3, 0, 0, parent),
+                3 to intArrayOf(2, 1, 1, parent)
+            )
+        )
+        val directions = arrayOf(Direction.LEFT, Direction.RIGHT, Direction.UP, Direction.DOWN)
+        for ((count, rows) in table) {
+            for ((index, expected) in rows) {
+                for ((dirIndex, direction) in directions.withIndex()) {
+                    assertEquals(
+                        "count=$count index=$index direction=$direction",
+                        expected[dirIndex],
+                        OptionLayout.focus(index, count, direction)
+                    )
+                }
+            }
+        }
+        // 「家长解锁」的上下焦点：向上回到最后一行最左的可见选项，向下回到第一个选项
+        for (count in 2..4) {
+            assertEquals(
+                "parent count=$count up",
+                if (count > 2) 2 else 0,
+                OptionLayout.parentFocus(count, Direction.UP)
+            )
+            assertEquals("parent count=$count down", 0, OptionLayout.parentFocus(count, Direction.DOWN))
+        }
+    }
 }

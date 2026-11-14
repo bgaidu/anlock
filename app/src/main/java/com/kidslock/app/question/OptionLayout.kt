@@ -59,7 +59,9 @@ object OptionLayout {
             }
             else -> when (i) {
                 0 -> when (direction) {
-                    Direction.LEFT -> 3
+                    // 原实现里左上角「向左」是绕回左下角（btnOption3），不是右下角，
+                    // 这里必须保持 1:1，否则遥控器行为会漂移。
+                    Direction.LEFT -> 2
                     Direction.RIGHT -> 1
                     Direction.UP -> 0
                     Direction.DOWN -> 2
