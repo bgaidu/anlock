@@ -21,6 +21,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.kidslock.app.question.AnswerMatcher
+import com.kidslock.app.question.OptionLayout
 import com.kidslock.app.question.Question
 import com.kidslock.app.question.QuestionEngine
 
@@ -72,6 +73,11 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var tvQuota: TextView
     private lateinit var tvFeedback: TextView
     private lateinit var optionButtons: Array<Button>
+
+    /** 与 [optionButtons] 一一对应的 View id，供焦点映射使用。 */
+    private val optionButtonIds = intArrayOf(
+        R.id.btnOption1, R.id.btnOption2, R.id.btnOption3, R.id.btnOption4
+    )
 
     private lateinit var layoutPin: View
     private lateinit var tvPinDisplay: TextView
@@ -330,73 +336,39 @@ class LockScreenActivity : AppCompatActivity() {
      * 否则会残留上一道题的文案，而且还能被点中记成答错。
      */
     private fun renderOptions(options: List<String>) {
+        val count = OptionLayout.countOf(options.size)
         layoutOptions1.visibility = View.VISIBLE
-        layoutOptions2.visibility = if (options.size > 2) View.VISIBLE else View.GONE
+        layoutOptions2.visibility =
+            if (OptionLayout.secondRowVisible(count)) View.VISIBLE else View.GONE
         for (i in optionButtons.indices) {
-            val text = options.getOrNull(i)
+            val text = if (OptionLayout.isVisible(i, count)) options.getOrNull(i) else null
             optionButtons[i].text = text ?: ""
             optionButtons[i].setBackgroundResource(R.drawable.btn_option_bg)
             optionButtons[i].isEnabled = text != null
             optionButtons[i].visibility = if (text != null) View.VISIBLE else View.GONE
         }
-        bindOptionFocus(options.size)
+        bindOptionFocus(count)
     }
 
     /** 行数变化后重新绑定四向焦点，避免按「下」落到被隐藏的按钮上。 */
     private fun bindOptionFocus(count: Int) {
+        val n = OptionLayout.countOf(count)
         val parentUnlock = findViewById<View>(R.id.btnParentUnlock)
-        when {
-            count >= 4 -> {
-                optionButtons[0].nextFocusLeftId = R.id.btnOption3
-                optionButtons[0].nextFocusRightId = R.id.btnOption2
-                optionButtons[0].nextFocusUpId = R.id.btnOption1
-                optionButtons[0].nextFocusDownId = R.id.btnOption3
-                optionButtons[1].nextFocusLeftId = R.id.btnOption1
-                optionButtons[1].nextFocusRightId = R.id.btnOption4
-                optionButtons[1].nextFocusUpId = R.id.btnOption2
-                optionButtons[1].nextFocusDownId = R.id.btnOption4
-                optionButtons[2].nextFocusLeftId = R.id.btnOption4
-                optionButtons[2].nextFocusRightId = R.id.btnOption1
-                optionButtons[2].nextFocusUpId = R.id.btnOption1
-                optionButtons[2].nextFocusDownId = R.id.btnParentUnlock
-                optionButtons[3].nextFocusLeftId = R.id.btnOption3
-                optionButtons[3].nextFocusRightId = R.id.btnOption2
-                optionButtons[3].nextFocusUpId = R.id.btnOption2
-                optionButtons[3].nextFocusDownId = R.id.btnParentUnlock
-                parentUnlock.nextFocusUpId = R.id.btnOption3
-                parentUnlock.nextFocusDownId = R.id.btnOption1
-            }
-            count == 3 -> {
-                optionButtons[0].nextFocusLeftId = R.id.btnOption3
-                optionButtons[0].nextFocusRightId = R.id.btnOption2
-                optionButtons[0].nextFocusUpId = R.id.btnOption1
-                optionButtons[0].nextFocusDownId = R.id.btnOption3
-                optionButtons[1].nextFocusLeftId = R.id.btnOption1
-                optionButtons[1].nextFocusRightId = R.id.btnOption3
-                optionButtons[1].nextFocusUpId = R.id.btnOption2
-                optionButtons[1].nextFocusDownId = R.id.btnOption3
-                optionButtons[2].nextFocusLeftId = R.id.btnOption2
-                optionButtons[2].nextFocusRightId = R.id.btnOption1
-                optionButtons[2].nextFocusUpId = R.id.btnOption1
-                optionButtons[2].nextFocusDownId = R.id.btnParentUnlock
-                parentUnlock.nextFocusUpId = R.id.btnOption3
-                parentUnlock.nextFocusDownId = R.id.btnOption1
-            }
-            else -> {
-                // 两个选项：左右互指，向下直接到「家长解锁」
-                optionButtons[0].nextFocusLeftId = R.id.btnOption2
-                optionButtons[0].nextFocusRightId = R.id.btnOption2
-                optionButtons[0].nextFocusUpId = R.id.btnOption1
-                optionButtons[0].nextFocusDownId = R.id.btnParentUnlock
-                optionButtons[1].nextFocusLeftId = R.id.btnOption1
-                optionButtons[1].nextFocusRightId = R.id.btnOption1
-                optionButtons[1].nextFocusUpId = R.id.btnOption2
-                optionButtons[1].nextFocusDownId = R.id.btnParentUnlock
-                parentUnlock.nextFocusUpId = R.id.btnOption1
-                parentUnlock.nextFocusDownId = R.id.btnOption1
-            }
+        for (i in 0 until n) {
+            val button = optionButtons[i]
+            button.nextFocusLeftId = focusViewId(OptionLayout.focus(i, n, OptionLayout.Direction.LEFT))
+            button.nextFocusRightId = focusViewId(OptionLayout.focus(i, n, OptionLayout.Direction.RIGHT))
+            button.nextFocusUpId = focusViewId(OptionLayout.focus(i, n, OptionLayout.Direction.UP))
+            button.nextFocusDownId = focusViewId(OptionLayout.focus(i, n, OptionLayout.Direction.DOWN))
         }
+        parentUnlock.nextFocusUpId =
+            focusViewId(OptionLayout.parentFocus(n, OptionLayout.Direction.UP))
+        parentUnlock.nextFocusDownId =
+            focusViewId(OptionLayout.parentFocus(n, OptionLayout.Direction.DOWN))
     }
+
+    private fun focusViewId(target: Int): Int =
+        if (target == OptionLayout.TO_PARENT) R.id.btnParentUnlock else optionButtonIds[target]
 
     /**
      * 软键盘弹出时窗口被压缩，内容会高出可视区，把「提交」按钮顶到键盘后面。

@@ -60,4 +60,39 @@ class MathSpecTest {
             }
         }
     }
+
+    /**
+     * 单位换算只允许「同量纲」的配对（米→厘米、千克→克、分钟→秒、升→毫升），
+     * 且答案必须等于 数值 × 换算倍数。历史上真机抽查曾怀疑出现「米 → 毫升」，
+     * 复查确认是终端按 GBK 解码 UTF-8 造成的乱码误报；这里用测试把这条约束固定下来，
+     * 以后改错分支会立刻失败。
+     */
+    @Test
+    fun unitConvert_usesOnlyConsistentUnitPairs() {
+        val pairs = mapOf(
+            "米" to ("厘米" to 100L),
+            "千克" to ("克" to 1000L),
+            "分钟" to ("秒" to 60L),
+            "升" to ("毫升" to 1000L)
+        )
+        val pattern = Regex("^(\\d+) (\\S+) = \\? (\\S+)$")
+        val rnd = Random(314)
+        repeat(500) {
+            val p = MathSpec.generate(MathSpec.MathKind.UNIT_CONVERT, rnd)!!
+            val match = pattern.find(p.stem)
+            assertNotNull("单位换算题干格式不对: ${p.stem}", match)
+            val groups = match!!.groupValues
+            val amount = groups[1].toLong()
+            val from = groups[2]
+            val to = groups[3]
+            val pair = pairs[from]
+            assertNotNull("未知的换算源单位: ${p.stem}", pair)
+            assertEquals("单位配对错误: ${p.stem}", pair!!.first, to)
+            assertEquals(
+                "换算倍数错误: ${p.stem}",
+                amount * pair.second,
+                p.answerText.toLong()
+            )
+        }
+    }
 }
