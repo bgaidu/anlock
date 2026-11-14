@@ -737,7 +737,8 @@ class LockScreenActivity : AppCompatActivity() {
         window.addFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN
                     or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            // 注意：不要加 FLAG_LAYOUT_NO_LIMITS。它会让系统认为窗口可以超出屏幕，
+            // 于是软键盘弹出时不做 adjustResize，填空题的「提交」按钮会被键盘盖住。
         )
     }
 }
