@@ -306,7 +306,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 - **填空题「提交」被软键盘盖住（荣耀平板实测）**：`hideSystemUI()` 在每次窗口获得焦点时都会补上 `FLAG_LAYOUT_NO_LIMITS`，系统因此认为窗口允许超出屏幕，软键盘弹出时不再 `adjustResize`——实测 `scrollRoot` 仍是 2880×1840，而输入法 `touchableRegion` 从 y=817 起，`提交` 按钮（y 850–976）整块被键盘压住，孩子只能停在锁屏页。
 - **去掉 `FLAG_LAYOUT_NO_LIMITS`，并把输入框与「提交」并排放**：`hideSystemUI()` 只保留 `FLAG_FULLSCREEN | FLAG_LAYOUT_IN_SCREEN`；`layoutFill` 改为横向一行（`EditText` 360dp + `提交` 200dp），按钮位于屏幕上半部分，即使设备不响应 `adjustResize`（MagicOS 的输入法窗口 `frame` 上报为 0×0，系统拿不到键盘高度）也不会被遮挡。输入法回车键仍可提交，切回选择题时自动收起键盘。
-- **真机验证（荣耀 MagicPad 13 / GDI-W09 / Android 14，debug 包 `com.kidslock.app.dbg`）**：键盘弹出后 `etFillAnswer`(y 609–735) 与 `提交`(y 609–735) 完整可见；输入 `9` 点「提交」判对、星星 +1、进度 0/5→1/5；输入错误答案扣 1 颗星；输入后按输入法回车同样提交成功（进度 1/5→2/5）。
+- **真机验证（荣耀 MagicPad 13 / GDI-W09 / Android 14，debug 包 `com.kidslock.app.dbg` + Release 1.0.1.31）**：键盘弹出后 `etFillAnswer`(y 609–735) 与 `提交`(y 609–735) 完整可见；输入 `9` 点「提交」判对、星星 +1、进度 0/5→1/5；输入错误答案扣 1 颗星；输入后按输入法回车同样提交成功（进度 1/5→2/5）。Release 装机复验：`版本 v1.0.1.31`，应用题输入 `72` 判对（星星 606→607、进度 0/15→1/15），下一道英语选择题键盘自动收起。
 - **同期 1.0.1.30 修复**（上游）：应用限额弹窗 `FrameLayout.LayoutParams` 类型不匹配导致的闪退；无障碍服务忽略输入法窗口（不再把锁屏窗口收起）；填空题自动滚动与回车提交兜底。
 
 ### 修复与调整（1.0.1.29）
